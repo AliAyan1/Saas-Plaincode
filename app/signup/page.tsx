@@ -27,7 +27,7 @@ export default function SignupPage() {
     } catch {
       // ignore
     }
-    router.push("/create-bot");
+    router.replace("/dashboard");
   };
 
   return (

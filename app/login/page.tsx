@@ -38,7 +38,7 @@ export default function LoginPage() {
       } catch {
         // ignore
       }
-      router.push("/create-bot");
+      router.push("/dashboard");
       return;
     }
 
