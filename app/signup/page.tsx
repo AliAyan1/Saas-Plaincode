@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import Card from "@/components/Card";
@@ -10,7 +9,6 @@ import Logo from "@/components/Logo";
 import GoogleIcon from "@/components/GoogleIcon";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: FormEvent) => {
@@ -27,7 +25,7 @@ export default function SignupPage() {
     } catch {
       // ignore
     }
-    router.replace("/dashboard");
+    window.location.href = "/create-bot";
   };
 
   return (
