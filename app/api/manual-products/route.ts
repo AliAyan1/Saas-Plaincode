@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         }
         return null;
       })
-      .filter((x): x is { data: string; mimeType: string } => !!x && x.data.length > 0);
+      .filter((x: { data: string; mimeType: string } | null): x is { data: string; mimeType: string } => !!x && x.data.length > 0);
     const storeUrl = typeof body.url === "string" ? body.url.trim() : null;
 
     if (!description && imageUrls.length === 0 && images.length === 0) {
