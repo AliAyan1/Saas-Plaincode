@@ -7,9 +7,11 @@ import { useBot } from "@/components/BotContext";
 
 interface ChatPanelProps {
   compact?: boolean;
+  /** When true (snippet/embed): hide "Test your ecommerce assistant", conversation count, Dashboard/Integration links. */
+  embed?: boolean;
 }
 
-export default function ChatPanel({ compact = false }: ChatPanelProps) {
+export default function ChatPanel({ compact = false, embed = false }: ChatPanelProps) {
   const {
     scrapedData,
     personality,
@@ -20,13 +22,27 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
     conversationRemaining,
     decrementConversations,
     addActivity,
+    addTicket,
+    userPlan,
+    chatbotId,
   } = useBot();
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForwardForm, setShowForwardForm] = useState(false);
+  const [forwardName, setForwardName] = useState("");
+  const [forwardEmail, setForwardEmail] = useState("");
+  const [forwardOrderRef, setForwardOrderRef] = useState("");
+  const [forwardSubmitting, setForwardSubmitting] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const greetingSentRef = useRef(false);
+  const conversationIdRef = useRef<string | null>(null);
+  const lastReplyShownRef = useRef<string | null>(null);
+  const [supportReplyIds, setSupportReplyIds] = useState<Set<string>>(new Set());
+  const [supportReplyMeta, setSupportReplyMeta] = useState<Map<string, { repliedAt: string | null }>>(new Map());
+  const [currentTicketRef, setCurrentTicketRef] = useState<string | null>(null);
+  const [ticketResolved, setTicketResolved] = useState(false);
 
   // Initial greeting once we know scraped data / personality
   useEffect(() => {
@@ -45,6 +61,91 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
     if (!endRef.current) return;
     endRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, loading]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setCurrentTicketRef(null);
+      setTicketResolved(false);
+    }
+  }, [messages.length]);
+
+  // Poll for support reply when we have a conversation (so customer sees reply in chat)
+  useEffect(() => {
+    const cid = conversationIdRef.current;
+    if (!cid) return;
+    const poll = () => {
+      fetch(`/api/forwarded/by-conversation?conversationId=${encodeURIComponent(cid)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.replyText && data.replyText !== lastReplyShownRef.current) {
+            lastReplyShownRef.current = data.replyText;
+            const id = addMessage({
+              role: "assistant",
+              content: data.replyText,
+            });
+            setSupportReplyIds((prev) => new Set(Array.from(prev).concat(id)));
+            setSupportReplyMeta((prev) => new Map(prev).set(id, { repliedAt: data.repliedAt ?? null }));
+            setTicketResolved(true);
+          }
+        })
+        .catch(() => {});
+    };
+    poll();
+    const t = setInterval(poll, 15000);
+    return () => clearInterval(t);
+  }, [messages.length, addMessage]);
+
+  const handleForwardToEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cid = conversationIdRef.current;
+    if (!cid || !chatbotId) {
+      setError("Start the conversation first so we can forward it.");
+      return;
+    }
+    const name = forwardName.trim() || "Customer";
+    const email = forwardEmail.trim();
+    if (!email) {
+      setError("Email is required to forward.");
+      return;
+    }
+    setForwardSubmitting(true);
+    setError(null);
+    try {
+      const conversationText = messages
+        .map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`)
+        .join("\n");
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      const res = await fetch("/api/forwarded", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: cid,
+          chatbotId,
+          customer: name,
+          customerEmail: email,
+          orderRef: forwardOrderRef.trim() || null,
+          preview: lastUser?.content?.slice(0, 200) || "Conversation",
+          conversationText,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to forward");
+      }
+      addMessage({
+        role: "assistant",
+        content: "Wait, our team is reviewing your request. You'll see their reply here when they respond.",
+      });
+      setShowForwardForm(false);
+      setForwardName("");
+      setForwardEmail("");
+      setForwardOrderRef("");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to forward");
+    } finally {
+      setForwardSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,6 +176,8 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
           question,
           personality,
           scrapedData,
+          ...(chatbotId && { chatbotId }),
+          ...(conversationIdRef.current && { conversationId: conversationIdRef.current }),
         }),
       });
 
@@ -88,6 +191,11 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
         }
         throw new Error(message);
       }
+
+      const convId = res.headers.get("X-Conversation-Id");
+      if (convId) conversationIdRef.current = convId;
+      const ref = res.headers.get("X-Ticket-Ref");
+      if (ref) setCurrentTicketRef(ref);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
@@ -105,11 +213,27 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
         updateMessage(assistantId, { content: fullText || "..." });
       }
 
+      // If AI requested forward to support (e.g. cancel order, refund), strip marker and open form
+      const forwardMarker = "[FORWARD_TO_SUPPORT]";
+      if (fullText.includes(forwardMarker)) {
+        const cleaned = fullText.replace(/\s*\[FORWARD_TO_SUPPORT\]\s*$/i, "").trim();
+        updateMessage(assistantId, { content: cleaned || fullText });
+        setShowForwardForm(true);
+      }
+
+      setTicketResolved(true);
       decrementConversations();
       addActivity({
         type: "resolved",
         title: "Chat query answered",
         detail: question.length > 60 ? question.slice(0, 60) + "…" : question,
+      });
+      addTicket({
+        type: "ai_resolved",
+        customer: "Chat user",
+        queryPreview: question.length > 80 ? question.slice(0, 80) + "…" : question,
+        outcome: "Resolved by AI",
+        status: "resolved",
       });
     } catch (err: any) {
       updateMessage(assistantId, {
@@ -131,36 +255,86 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
       }`}
     >
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-100">
-            Test your ecommerce assistant
-          </p>
-          <p className="text-xs text-slate-400">
-            {conversationRemaining} / 100 conversations remaining in Starter plan
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/dashboard">
-            <Button variant="ghost" className="px-3 py-1.5 text-xs">
-              Dashboard
-            </Button>
-          </Link>
-          <Link href="/integration">
-            <Button variant="ghost" className="px-3 py-1.5 text-xs">
-              Integration
-            </Button>
-          </Link>
-          <button
-            type="button"
-            onClick={clearMessages}
-            className="text-xs text-slate-400 hover:text-slate-100"
-          >
-            Clear
-          </button>
-        </div>
+        {embed ? (
+          <>
+            <p className="text-sm font-semibold text-slate-100">Chat</p>
+            <button
+              type="button"
+              onClick={clearMessages}
+              className="text-xs text-slate-400 hover:text-slate-100"
+            >
+              Clear
+            </button>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="text-sm font-semibold text-slate-100">
+                Test your ecommerce assistant
+              </p>
+              <p className="text-xs text-slate-400">
+                {conversationRemaining} / 100 conversations remaining in Starter plan
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/dashboard">
+                <Button variant="ghost" className="px-3 py-1.5 text-xs">
+                  Dashboard
+                </Button>
+              </Link>
+              <Link href="/integration">
+                <Button variant="ghost" className="px-3 py-1.5 text-xs">
+                  Integration
+                </Button>
+              </Link>
+              <button
+                type="button"
+                onClick={clearMessages}
+                className="text-xs text-slate-400 hover:text-slate-100"
+              >
+                Clear
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm">
+        {showForwardForm && chatbotId && (
+          <form onSubmit={handleForwardToEmail} className="mb-3 rounded-lg border border-slate-700 bg-slate-800/80 p-3 space-y-2">
+            <p className="text-xs font-medium text-slate-200">Forward this conversation to support</p>
+            <input
+              type="text"
+              placeholder="Your name"
+              value={forwardName}
+              onChange={(e) => setForwardName(e.target.value)}
+              className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            />
+            <input
+              type="email"
+              placeholder="Your email *"
+              value={forwardEmail}
+              onChange={(e) => setForwardEmail(e.target.value)}
+              required
+              className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            />
+            <input
+              type="text"
+              placeholder="Order number (optional)"
+              value={forwardOrderRef}
+              onChange={(e) => setForwardOrderRef(e.target.value)}
+              className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            />
+            <div className="flex gap-2">
+              <Button type="submit" variant="primary" className="px-3 py-1.5 text-xs" disabled={forwardSubmitting}>
+                {forwardSubmitting ? "Sending…" : "Send to support"}
+              </Button>
+              <button type="button" onClick={() => setShowForwardForm(false)} className="text-xs text-slate-400 hover:text-slate-100">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
         {!scrapedData && (
           <div className="mb-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
             <strong>No store data yet.</strong> The chatbot needs your website to be analyzed first. If you already entered a URL but saw a rate-limit or “access denied” error, the scrape didn’t complete—go to{" "}
@@ -186,26 +360,80 @@ export default function ChatPanel({ compact = false }: ChatPanelProps) {
           </p>
         )}
 
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 ${
-                m.role === "user"
-                  ? "bg-primary-600 text-white rounded-br-sm"
-                  : "bg-slate-800 text-slate-100 rounded-bl-sm"
-              }`}
-            >
-              <p className="whitespace-pre-wrap">
-                {m.role === "assistant"
-                  ? m.content.replace(/\*+/g, "").replace(/• /g, "- ")
-                  : m.content}
-              </p>
+        {messages.map((m, idx) => {
+          const isSupportReply = supportReplyIds.has(m.id);
+          const replyMeta = supportReplyMeta.get(m.id);
+          const isFirstUserMessage = m.role === "user" && messages.findIndex((x) => x.role === "user") === idx;
+          if (isSupportReply) {
+            return (
+              <div key={m.id}>
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] rounded-xl border border-sky-500/40 bg-sky-950/50 px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-medium text-sky-400">
+                      <span>Support reply</span>
+                      {replyMeta?.repliedAt && (
+                        <span className="text-slate-500 font-normal">
+                          {new Date(replyMeta.repliedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">
+                      {m.content}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div key={m.id}>
+              <div
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+                    m.role === "user"
+                      ? "bg-primary-600 text-white rounded-br-sm"
+                      : "bg-slate-800 text-slate-100 rounded-bl-sm"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">
+                    {m.role === "assistant"
+                      ? m.content.replace(/\*+/g, "").replace(/• /g, "- ")
+                      : m.content}
+                  </p>
+                </div>
+              </div>
+              {isFirstUserMessage && currentTicketRef && (
+                <div className="mt-3 flex items-center gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-400/40 bg-sky-500/20 text-sky-400">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p className="font-semibold text-slate-100">Creating ticket</p>
+                    <p className="text-sm text-slate-400">Ticket #{currentTicketRef}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {ticketResolved && (
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/20 text-emerald-400">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+            <div>
+              <p className="font-semibold text-slate-100">Ticket resolved</p>
+              <p className="text-sm text-slate-400">Our team or the AI has responded.</p>
             </div>
           </div>
-        ))}
+        )}
 
         {loading && (
           <div className="flex items-center gap-2 text-xs text-slate-400">

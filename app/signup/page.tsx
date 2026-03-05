@@ -10,22 +10,45 @@ import GoogleIcon from "@/components/GoogleIcon";
 
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setError(null);
     const form = e.target as HTMLFormElement;
-    const email = (form.querySelector('input[type="email"]') as HTMLInputElement)?.value ?? "";
-    const password = (form.querySelector('input[type="password"]') as HTMLInputElement)?.value ?? "";
-    try {
-      document.cookie = "mock-auth=1; path=/; max-age=86400";
-      window.localStorage.setItem("mock-auth", "1");
-      if (email) window.localStorage.setItem("signup-email", email);
-      if (password) window.localStorage.setItem("signup-password", password);
-    } catch {
-      // ignore
+    const fd = new FormData(form);
+    const name = (fd.get("name") as string)?.trim() || null;
+    const email = (fd.get("email") as string)?.trim()?.toLowerCase() ?? "";
+    const password = (fd.get("password") as string) ?? "";
+
+    if (!email || !password) {
+      setError("Email and password are required.");
+      return;
     }
-    window.location.href = "/create-bot";
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Signup failed.");
+        setLoading(false);
+        return;
+      }
+      window.location.href = "/onboarding/store-type";
+    } catch {
+      setError("Signup failed. Try again.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -35,7 +58,7 @@ export default function SignupPage() {
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
-              Ecommerce Support in One Click
+              Plaincode&apos;s AI Chatbot
             </span>
           </Link>
           <p className="text-sm text-slate-400">
@@ -75,29 +98,42 @@ export default function SignupPage() {
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <Input
+              name="name"
               label="Full Name"
               type="text"
               placeholder="Jane Doe"
               autoComplete="name"
+              required
             />
             <Input
+              name="email"
               label="Business Email"
               type="email"
               placeholder="jane@company.com"
               autoComplete="email"
+              required
             />
             <Input
+              name="companyName"
               label="Company Name"
               type="text"
               placeholder="Acme E-commerce"
               autoComplete="organization"
             />
             <Input
+              name="password"
               label="Password"
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
+              minLength={6}
+              required
             />
+            {error && (
+              <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/40 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -134,7 +170,7 @@ export default function SignupPage() {
       </main>
 
       <footer className="py-4 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} Ecommerce Support in One Click. All rights reserved.
+        © {new Date().getFullYear()} Plaincode&apos;s AI Chatbot. All rights reserved.
       </footer>
     </div>
   );

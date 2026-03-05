@@ -1,6 +1,6 @@
-# Ecommerce Support in One Click
+# Plaincode's AI Chatbot
 
-Production-ready Next.js frontend (Tailwind CSS) for the SaaS product **Ecommerce Support in One Click** — AI customer support for e-commerce.
+Production-ready Next.js frontend (Tailwind CSS) for the SaaS product **Plaincode's AI Chatbot** — AI customer support for e-commerce.
 
 ## Setup
 

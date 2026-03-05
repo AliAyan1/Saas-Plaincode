@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useBot } from "@/components/BotContext";
+import { useAppShell } from "@/components/AppShellContext";
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
 
 const MAIN_MENU = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
   { href: "/conversations", label: "Conversations", icon: "chat" },
   { href: "/forwarded-conversations", label: "Forwarded Conversations", icon: "forward" },
+  { href: "/tickets", label: "Tickets", icon: "ticket" },
   { href: "/analytics", label: "Analytics", icon: "chart" },
 ] as const;
 
@@ -69,6 +80,12 @@ function Icon({ name }: { name: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       );
+    case "ticket":
+      return (
+        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -76,22 +93,25 @@ function Icon({ name }: { name: string }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { userPlan } = useBot();
+  const { mobileSidebarOpen, setMobileSidebarOpen } = useAppShell();
+  const isPro = userPlan === "pro";
 
-  return (
-    <aside className="w-56 shrink-0 border-r border-slate-800 bg-black py-6">
-      <div className="flex h-full flex-col px-3">
+  const sidebarContent = (
+    <div className="flex h-full flex-col px-3 py-6">
         <nav className="flex-1 space-y-6">
           <div>
             <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Main menu
             </p>
             <ul className="space-y-0.5">
-              {MAIN_MENU.map(({ href, label, icon }) => {
+              {MAIN_MENU.filter((item) => !("proOnly" in item && item.proOnly) || isPro).map(({ href, label, icon }) => {
                 const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
                 return (
                   <li key={href}>
                     <Link
                       href={href}
+                      onClick={() => setMobileSidebarOpen(false)}
                       className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         isActive
                           ? "bg-primary-500/15 text-primary-400"
@@ -117,6 +137,7 @@ export default function Sidebar() {
                   <li key={href}>
                     <Link
                       href={href}
+                      onClick={() => setMobileSidebarOpen(false)}
                       className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         isActive
                           ? "bg-primary-500/15 text-primary-400"
@@ -136,6 +157,7 @@ export default function Sidebar() {
               <li>
                 <Link
                   href={RECENT.href}
+                  onClick={() => setMobileSidebarOpen(false)}
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800/80 hover:text-slate-200"
                 >
                   <Icon name={RECENT.icon} />
@@ -150,6 +172,44 @@ export default function Sidebar() {
           <p className="mt-1 px-3 text-sm text-slate-300">Store Manager</p>
         </div>
       </div>
-    </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop: always visible sidebar */}
+      <aside className="hidden w-56 shrink-0 border-r border-slate-800 bg-black lg:block">
+        {sidebarContent}
+      </aside>
+      {/* Mobile/tablet: overlay drawer */}
+      <div className="lg:hidden">
+        {mobileSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            aria-hidden
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+        <aside
+          className={`fixed left-0 top-0 z-50 h-full w-64 max-w-[85vw] border-r border-slate-800 bg-black shadow-xl transition-transform duration-200 ease-out lg:hidden ${
+            mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="flex items-center justify-between border-b border-slate-800 px-3 py-3">
+            <span className="text-sm font-semibold text-slate-200">Menu</span>
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen(false)}
+              className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+              aria-label="Close menu"
+            >
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto py-2">
+            {sidebarContent}
+          </div>
+        </aside>
+      </div>
+    </>
   );
 }

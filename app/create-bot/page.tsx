@@ -21,7 +21,27 @@ const PROGRESS_STEPS: { key: ScanStep; label: string }[] = [
 
 export default function CreateBotPage() {
   const router = useRouter();
-  const { setScrapedData, scrapedData, addActivity } = useBot();
+  const { setScrapedData, scrapedData, addActivity, setChatbotId, personality } = useBot();
+  const [storeType, setStoreType] = useState<string | null>(null);
+  const [storeTypeLoading, setStoreTypeLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/users/store-type").then((r) => r.json()),
+      fetch("/api/users/forward-email").then((r) => r.json()),
+    ])
+      .then(([storeData, emailData]) => {
+        const st = storeData.storeType || null;
+        setStoreType(st);
+        if (!st) {
+          router.replace("/onboarding/store-type");
+          return;
+        }
+        if (!emailData.forwardEmail) router.replace("/onboarding/forward-email");
+      })
+      .catch(() => setStoreType("custom"))
+      .finally(() => setStoreTypeLoading(false));
+  }, [router]);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +85,10 @@ export default function CreateBotPage() {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({
+          url: trimmed,
+          ...(storeType && { storeType }),
+        }),
       });
 
       setProgressPercent(95);
@@ -82,18 +105,35 @@ export default function CreateBotPage() {
 
       const data = await res.json();
       setProgressPercent(100);
-      setScrapedData({
+      const payload = {
         url: trimmed,
         title: data.title || "",
         description: data.description || "",
         content: data.content || "",
         products: Array.isArray(data.products) ? data.products : [],
-      });
+      };
+      setScrapedData(payload);
       addActivity({
         type: "system",
         title: "Website connected",
         detail: `AI updated with content from ${trimmed.replace(/^https?:\/\//, "").split("/")[0]}`,
       });
+      const botRes = await fetch("/api/chatbots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          websiteUrl: trimmed,
+          websiteTitle: payload.title,
+          websiteDescription: payload.description,
+          websiteContent: payload.content,
+          products: payload.products || [],
+          personality: personality || "Friendly",
+        }),
+      });
+      if (botRes.ok) {
+        const botData = await botRes.json();
+        if (botData.chatbot?.id) setChatbotId(botData.chatbot.id);
+      }
       router.push("/training-data");
     } catch (err: unknown) {
       setScanStep("error");
@@ -103,6 +143,18 @@ export default function CreateBotPage() {
     }
   };
 
+  if (storeTypeLoading) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[400px] items-center justify-center">
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const isShopify = storeType === "shopify";
+
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -110,13 +162,46 @@ export default function CreateBotPage() {
 
         <div className="mt-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-primary-400">
-            Step 1: Connect your website
+            Step 1: Connect your {isShopify ? "Shopify" : "store"}
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-100">Connect your store</h1>
+          <h1 className="mt-2 text-3xl font-bold text-slate-100">
+            {isShopify ? "Install our Shopify app" : "Connect your store"}
+          </h1>
           <p className="mt-2 text-slate-400">
-            Enter your website URL so our AI can learn your products and brand. Data is saved and persists across refreshes.
+            {isShopify
+              ? "One-click install. Our app connects to your Shopify store and syncs products, orders, and policies automatically."
+              : "Enter your website URL or add our snippet. Our AI will learn your products and brand."}
           </p>
         </div>
+
+        {isShopify ? (
+          <Card className="mt-6 space-y-6">
+            <div className="flex items-start gap-4 rounded-lg border border-primary-500/30 bg-primary-500/5 p-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-500/20 text-primary-400">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </span>
+              <div>
+                <h3 className="font-semibold text-slate-200">Shopify App Store</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Install our app from the Shopify App Store. It will sync your store data in one click.
+                </p>
+                <a
+                  href="https://apps.shopify.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-block"
+                >
+                  <Button variant="primary">Go to Shopify App Store</Button>
+                </a>
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">
+              Or connect via URL below if you prefer.
+            </p>
+          </Card>
+        ) : null}
 
         <Card className="mt-6 space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -186,7 +271,7 @@ export default function CreateBotPage() {
           </form>
         </Card>
 
-        {loading && (
+        {!isShopify && loading && (
           <Card className="mt-6 space-y-4">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/20 text-primary-400">

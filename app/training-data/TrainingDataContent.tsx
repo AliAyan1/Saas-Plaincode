@@ -94,31 +94,41 @@ export default function TrainingDataContent() {
           <p className="mt-1 text-xs text-slate-500">
             Snapshot of catalog items detected from your latest crawl.
           </p>
-          <div className="mt-4 space-y-3 text-xs">
-            {products ? (
-              products.map((p, idx) => (
-                <div
-                  key={p.name + idx.toString()}
-                  className="flex items-center justify-between rounded-lg bg-slate-900/60 px-3 py-2"
-                >
-                  <div>
-                    <p className="text-slate-200">{p.name}</p>
-                    <p className="text-[11px] text-slate-500">
-                      Imported from crawl - Item #{idx + 1}
-                    </p>
+            <div className="mt-4 space-y-3 text-xs">
+              {products ? (
+                products.map((p, idx) => (
+                  <div
+                    key={p.name + idx.toString()}
+                    className="flex items-center justify-between rounded-lg bg-slate-900/60 px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-slate-200">{p.name}</p>
+                      <p className="text-[11px] text-slate-500">
+                        Imported from crawl - Item #{idx + 1}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                      Active
+                    </span>
                   </div>
-                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                    Active
-                  </span>
+                ))
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">
+                    No products detected yet. Connect a store URL from the Create Bot step or add
+                    products manually.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={() => router.push("/training-data/manual-products")}
+                  >
+                    Add products with AI
+                  </Button>
                 </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500">
-                No products detected yet. Connect a store URL from the Create
-                Bot step to populate this inventory.
-              </p>
-            )}
-          </div>
+              )}
+            </div>
         </Card>
       </section>
 

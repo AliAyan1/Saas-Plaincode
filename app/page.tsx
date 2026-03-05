@@ -3,6 +3,10 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
+import AiDemoSection from "@/components/AiDemoSection";
+import LandingChatSection from "@/components/LandingChatSection";
+import HeroSection from "@/components/HeroSection";
+import AnimatedSection from "@/components/AnimatedSection";
 
 export default function HomePage() {
   return (
@@ -11,62 +15,19 @@ export default function HomePage() {
 
       <main>
         {/* Hero */}
-        <section className="relative overflow-hidden border-b border-slate-800 bg-black px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-28">
-          <div className="mx-auto max-w-7xl">
-            <div>
-              <div className="max-w-2xl">
-                <div className="mb-6 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-primary-500/50 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-400">
-                    AI Engine
-                  </span>
-                  <span className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
-                    No credit card required
-                  </span>
-                </div>
-                <h1 className="text-4xl font-bold tracking-tight text-slate-100 sm:text-5xl lg:text-6xl">
-                  AI Customer Support for E-commerce
-                  <span className="text-primary-400"> · </span>
-                  <span className="bg-gradient-to-r from-primary-400 to-primary-500 bg-clip-text text-transparent">
-                    In One Click
-                  </span>
-                </h1>
-                <p className="mt-6 text-lg text-slate-400">
-                  Automatically create AI chatbots and voice bots trained on your website.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-4">
-                  <Link href="/signup">
-                    <Button variant="primary" className="min-w-[160px]">
-                      Start Free Trial
-                    </Button>
-                  </Link>
-                </div>
-                <div className="mt-8 flex flex-col gap-4">
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <span className="flex -space-x-2">
-                      {[1, 2, 3].map((i) => (
-                        <span
-                          key={i}
-                          className="h-8 w-8 rounded-full border-2 border-slate-700 bg-slate-600 flex items-center justify-center text-xs text-slate-400 font-medium"
-                        />
-                      ))}
-                    </span>
-                    <span className="text-sm text-slate-500">Trusted by 200 customers</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <HeroSection />
 
         {/* How It Works */}
         <section id="how-it-works" className="border-b border-slate-800 bg-black px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
           <div className="mx-auto max-w-7xl">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary-400">
-              How It Works
-            </p>
-            <h2 className="mt-2 text-3xl font-bold text-slate-100 sm:text-4xl">
-              Go live in 3 simple steps
-            </h2>
+            <AnimatedSection variant="fade-up">
+              <p className="text-sm font-semibold uppercase tracking-wider text-primary-400">
+                How It Works
+              </p>
+              <h2 className="mt-2 text-3xl font-bold text-slate-100 sm:text-4xl">
+                Go live in 3 simple steps
+              </h2>
+            </AnimatedSection>
             <div className="mt-12 grid gap-8 sm:grid-cols-3">
               {[
                 {
@@ -119,28 +80,30 @@ export default function HomePage() {
                     />
                   ),
                 },
-              ].map((item) => (
-                <div key={item.step} className="flex flex-col items-center text-center sm:items-start sm:text-left">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-lg font-bold text-white shadow-soft">
-                    {item.step}
-                  </div>
-                  <Card className="mt-4 flex-1 w-full">
-                    <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/20 text-primary-400">
-                      <svg
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        {item.icon}
-                      </svg>
+              ].map((item, idx) => (
+                <AnimatedSection key={item.step} variant="fade-up" delay={150 + idx * 100}>
+                  <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-lg font-bold text-white shadow-soft transition-transform hover:scale-110">
+                      {item.step}
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-100">
-                      {item.title}
-                    </h3>
-                    <p className="mt-2 text-slate-400">{item.description}</p>
-                  </Card>
-                </div>
+                    <Card className="mt-4 flex-1 w-full transition-all hover:border-primary-500/30 hover:shadow-soft-lg">
+                      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/20 text-primary-400">
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          {item.icon}
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-100">
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 text-slate-400">{item.description}</p>
+                    </Card>
+                  </div>
+                </AnimatedSection>
               ))}
             </div>
           </div>
@@ -149,13 +112,15 @@ export default function HomePage() {
         {/* Features */}
         <section className="border-t border-slate-800 bg-black px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
           <div className="mx-auto max-w-7xl">
-            <h2 className="text-3xl font-bold text-slate-100 sm:text-4xl">
-              Everything you need to automate
-            </h2>
-            <p className="mt-4 max-w-2xl text-lg text-slate-400">
-              Stop drowning in tickets. Get a world-class support layer for a fraction of the cost.
-            </p>
-            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <AnimatedSection variant="fade-up">
+              <h2 className="text-3xl font-bold text-slate-100 sm:text-4xl">
+                Everything you need to automate
+              </h2>
+              <p className="mt-4 max-w-2xl text-lg text-slate-400">
+                Stop drowning in tickets. Get a world-class support layer for a fraction of the cost.
+              </p>
+            </AnimatedSection>
+            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 {
                   title: "Website URL Scraping",
@@ -197,6 +162,32 @@ export default function HomePage() {
                   ),
                 },
                 {
+                  title: "Ticket Creation",
+                  description:
+                    "AI automatically creates support tickets when queries need follow-up or human review.",
+                  icon: (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+                    />
+                  ),
+                },
+                {
+                  title: "Forward to Email",
+                  description:
+                    "Forward entire conversations to your team's inbox with one click.",
+                  icon: (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  ),
+                },
+                {
                   title: "One-Click Integration",
                   description:
                     "Add a script tag or install our app. No coding or complex setup.",
@@ -209,37 +200,50 @@ export default function HomePage() {
                     />
                   ),
                 },
-              ].map((f) => (
-                <Card key={f.title} className="h-full">
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/20 text-primary-400">
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      {f.icon}
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-100">
-                    {f.title}
-                  </h3>
-                  <p className="mt-2 text-slate-400">{f.description}</p>
-                </Card>
+              ].map((f, idx) => (
+                <AnimatedSection key={f.title} variant="fade-up" delay={100 + idx * 80}>
+                  <Card className="h-full transition-all hover:scale-[1.02] hover:border-primary-500/30 hover:shadow-soft-lg">
+                    <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/20 text-primary-400">
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        {f.icon}
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-100">
+                      {f.title}
+                    </h3>
+                    <p className="mt-2 text-slate-400">{f.description}</p>
+                  </Card>
+                </AnimatedSection>
               ))}
             </div>
           </div>
         </section>
 
+        {/* AI Demo */}
+        <AiDemoSection />
+
+        {/* Live chat + dashboard preview */}
+        <LandingChatSection />
+
         {/* Pricing */}
-        <section id="pricing" className="border-t border-slate-800 bg-slate-900/30 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-          <div className="mx-auto max-w-7xl">
-            <h2 className="text-3xl font-bold text-slate-100 sm:text-4xl">
-              Transparent pricing
-            </h2>
-            <p className="mt-4 text-lg text-slate-400">
-              Start for free and scale as your shop grows.
-            </p>
+        <section id="pricing" className="relative border-t border-slate-800 bg-slate-900/30 px-4 py-16 sm:px-6 lg:px-8 lg:py-24 overflow-hidden">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-primary-500/5 blur-[120px]" />
+          </div>
+          <div className="relative mx-auto max-w-7xl">
+            <AnimatedSection variant="fade-up">
+              <h2 className="text-3xl font-bold text-slate-100 sm:text-4xl">
+                Transparent pricing
+              </h2>
+              <p className="mt-4 text-lg text-slate-400">
+                Start for free and scale as your shop grows.
+              </p>
+            </AnimatedSection>
             <div className="mt-12 grid gap-8 lg:grid-cols-2 max-w-4xl mx-auto">
               {[
                 {
@@ -263,6 +267,7 @@ export default function HomePage() {
                   period: "/mo",
                   features: [
                     "Forward full conversations to email",
+                    "Automatic ticket creation",
                     "Increased conversion",
                     "Email support",
                     "Standard integration (add other integrations)",
@@ -273,10 +278,10 @@ export default function HomePage() {
                   variant: "primary" as const,
                   recommended: true,
                 },
-              ].map((plan) => (
+              ].map((plan, idx) => (
+                <AnimatedSection key={plan.name} variant="scale-in" delay={150 + idx * 100}>
                 <Card
-                  key={plan.name}
-                  className={`relative flex flex-col ${
+                  className={`relative flex flex-col transition-all hover:scale-[1.02] ${
                     plan.recommended
                       ? "ring-2 ring-primary-500 shadow-soft-lg"
                       : ""
@@ -335,14 +340,18 @@ export default function HomePage() {
                     </Link>
                   </div>
                 </Card>
+                </AnimatedSection>
               ))}
             </div>
           </div>
         </section>
 
         {/* CTA */}
-        <section className="border-t border-slate-800 bg-black px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="mx-auto max-w-3xl text-center">
+        <section className="relative border-t border-slate-800 bg-black px-4 py-16 sm:px-6 lg:px-8 lg:py-20 overflow-hidden">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[400px] w-[400px] rounded-full bg-primary-500/10 blur-[120px] animate-glow-pulse" />
+          </div>
+          <AnimatedSection variant="fade-up" className="relative mx-auto max-w-3xl text-center">
             <h2 className="text-3xl font-bold text-slate-100 sm:text-4xl">
               Ready to automate your store?
             </h2>
@@ -351,12 +360,12 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <Link href="/signup">
-                <Button variant="primary" className="min-w-[160px]">
+                <Button variant="primary" className="min-w-[160px] transition-transform hover:scale-105 active:scale-95">
                   Get Started Free
                 </Button>
               </Link>
               <Link href="/contact">
-                <Button variant="outline" className="min-w-[160px]">
+                <Button variant="outline" className="min-w-[160px] transition-transform hover:scale-105 active:scale-95">
                   Talk to an Expert
                 </Button>
               </Link>
@@ -364,7 +373,7 @@ export default function HomePage() {
             <p className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-500">
               <span className="text-primary-400">Secure & GDPR compliant</span>
             </p>
-          </div>
+          </AnimatedSection>
         </section>
       </main>
 

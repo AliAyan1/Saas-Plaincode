@@ -17,32 +17,45 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const DEMO_EMAIL = "demo@ecommerce.ai";
-    const DEMO_PASSWORD = "123456";
-    const storedEmail = typeof window !== "undefined" ? window.localStorage.getItem("signup-email") : null;
-    const storedPassword = typeof window !== "undefined" ? window.localStorage.getItem("signup-password") : null;
-
-    const valid =
-      (email.trim() === DEMO_EMAIL && password === DEMO_PASSWORD) ||
-      (storedEmail && storedPassword && email.trim() === storedEmail && password === storedPassword);
-
-    if (valid) {
-      setLoading(true);
-      try {
-        document.cookie = "mock-auth=1; path=/; max-age=86400";
-        window.localStorage.setItem("mock-auth", "1");
-      } catch {
-        // ignore
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Invalid credentials.");
+        setLoading(false);
+        return;
       }
       router.push("/dashboard");
-      return;
+    } catch {
+      setError("Login failed. Try again.");
+      setLoading(false);
     }
+  };
 
-    setError("Invalid credentials. Sign up first or use demo@ecommerce.ai / 123456.");
+  const handleClearData = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.localStorage.removeItem("signup-email");
+      window.localStorage.removeItem("signup-password");
+      window.localStorage.removeItem("mock-auth");
+      window.localStorage.removeItem("bot-state-v2");
+      document.cookie = "mock-auth=; path=/; max-age=0";
+      setError(null);
+      window.location.reload();
+    } catch {
+      window.location.reload();
+    }
   };
 
   return (
@@ -52,7 +65,7 @@ export default function LoginPage() {
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
-              Ecommerce Support in One Click
+              Plaincode&apos;s AI Chatbot
             </span>
           </Link>
           <p className="text-sm text-slate-400">
@@ -69,7 +82,7 @@ export default function LoginPage() {
           <div className="mb-8 text-center">
             <Link href="/" className="inline-flex items-center gap-2 text-slate-100">
               <Logo size="sm" />
-              <span className="font-semibold">Ecommerce Support in One Click</span>
+              <span className="font-semibold">Plaincode&apos;s AI Chatbot</span>
             </Link>
             <h1 className="mt-6 text-2xl font-bold text-slate-100">Welcome back</h1>
             <p className="mt-2 text-slate-400">
@@ -131,7 +144,16 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
+          <p className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={handleClearData}
+              className="text-xs text-slate-500 hover:text-slate-400 underline"
+            >
+              Clear saved data
+            </button>
+          </p>
+          <p className="mt-2 text-center text-xs text-slate-500">
             By logging in, you agree to our{" "}
             <Link href="/terms" className="text-primary-400 hover:underline">
               Terms of Service
@@ -146,7 +168,7 @@ export default function LoginPage() {
       </main>
 
       <footer className="py-4 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} Ecommerce Support in One Click. All rights reserved.
+        © {new Date().getFullYear()} Plaincode&apos;s AI Chatbot. All rights reserved.
       </footer>
     </div>
   );

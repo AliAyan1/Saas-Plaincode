@@ -16,7 +16,7 @@ export default function TestChatbotPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-100">Test chatbot</h1>
           <p className="mt-2 text-slate-400">
-            Chat with your assistant in real time using live OpenAI responses.
+            Chat with your assistant in real time.
           </p>
         </div>
 

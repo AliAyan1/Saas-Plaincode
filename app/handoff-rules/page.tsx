@@ -12,7 +12,7 @@ export default function HandoffRulesPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-100">Human handoff logic</h1>
               <p className="mt-2 text-sm text-slate-400">
-                Define when your Ecommerce Support AI should gracefully hand conversations
+                Define when your Plaincode&apos;s AI Chatbot should gracefully hand conversations
                 to a human agent.
               </p>
             </div>

@@ -2,6 +2,7 @@
 
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
+import { AppShellProvider, useAppShell } from "./AppShellContext";
 import { usePathname } from "next/navigation";
 
 const HIDE_SIDEBAR_ROUTES = [
@@ -14,21 +15,33 @@ const HIDE_SIDEBAR_ROUTES = [
   "/demo-website",
 ];
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const hideSidebar = HIDE_SIDEBAR_ROUTES.some((p) =>
-    pathname.startsWith(p)
-  );
+function AppShellInner({ children, hideSidebar }: { children: React.ReactNode; hideSidebar: boolean }) {
+  const { mobileSidebarOpen } = useAppShell();
+  const sidebarVisible = !hideSidebar;
 
   return (
-    <div className="min-h-screen bg-black">
+    <>
       <Navbar />
-      <div className="flex">
-        {!hideSidebar && <Sidebar />}
-        <main className="min-h-[calc(100vh-56px)] flex-1 overflow-auto">
+      <div className="flex min-h-[calc(100vh-56px)]">
+        {sidebarVisible && <Sidebar />}
+        <main className="min-h-[calc(100vh-56px)] min-w-0 flex-1 overflow-auto">
           {children}
         </main>
       </div>
-    </div>
+    </>
+  );
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const hideSidebar = HIDE_SIDEBAR_ROUTES.some((p) => pathname.startsWith(p));
+  const sidebarVisible = !hideSidebar;
+
+  return (
+    <AppShellProvider sidebarVisible={sidebarVisible}>
+      <div className="min-h-screen bg-black">
+        <AppShellInner hideSidebar={hideSidebar}>{children}</AppShellInner>
+      </div>
+    </AppShellProvider>
   );
 }

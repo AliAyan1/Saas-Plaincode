@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Ecommerce Support in One Click | AI Customer Support for E-commerce",
+  title: "Plaincode's AI Chatbot | AI Customer Support for E-commerce",
   description:
     "Automatically create AI chatbots and voice bots trained on your website.",
   icons: {

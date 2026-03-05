@@ -41,10 +41,30 @@ export interface ScrapedData {
   title: string;
   description: string;
   content: string;
-  products?: { name: string }[];
+  products?: { name: string; price?: string }[];
 }
 
 export type ActivityType = "resolved" | "query" | "forwarded" | "system" | "warning";
+
+export type TicketType =
+  | "ai_resolved"
+  | "forwarded_email"
+  | "forwarded_human"
+  | "database_check"
+  | "escalated"
+  | "other";
+
+export interface Ticket {
+  id: string;
+  ticketRef: string;
+  type: TicketType;
+  customer: string;
+  queryPreview: string;
+  outcome?: string;
+  status: "open" | "resolved" | "in_progress";
+  conversationId?: string;
+  createdAt: number;
+}
 
 export interface ActivityItem {
   id: string;
@@ -54,7 +74,15 @@ export interface ActivityItem {
   createdAt: number;
 }
 
+export type UserPlan = "free" | "pro";
+
 interface BotContextValue {
+  userPlan: UserPlan;
+  setUserPlan: (p: UserPlan) => void;
+
+  chatbotId: string | null;
+  setChatbotId: (id: string | null) => void;
+
   scrapedData: ScrapedData | null;
   setScrapedData: (data: ScrapedData | null) => void;
 
@@ -80,11 +108,14 @@ interface BotContextValue {
 
   recentActivity: ActivityItem[];
   addActivity: (item: Omit<ActivityItem, "id" | "createdAt"> & Partial<Pick<ActivityItem, "id" | "createdAt">>) => string;
+
+  tickets: Ticket[];
+  addTicket: (item: Omit<Ticket, "id" | "ticketRef" | "createdAt"> & Partial<Pick<Ticket, "id" | "ticketRef" | "createdAt">>) => string;
 }
 
 const BotContext = createContext<BotContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "bot-state-v1";
+const STORAGE_KEY = "bot-state-v2";
 
 function safeParseJson<T>(value: string | null): T | null {
   if (!value) return null;
@@ -99,28 +130,45 @@ function makeId(prefix: string) {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
 
+function nextTicketRef(existing: Ticket[]): string {
+  const nums = existing
+    .map((t) => {
+      const m = t.ticketRef.match(/^TK-(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    })
+    .filter((n) => n > 0);
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+  return `TK-${String(next).padStart(3, "0")}`;
+}
+
 export function BotProvider({ children }: { children: ReactNode }) {
+  const [userPlan, setUserPlan] = useState<UserPlan>("free");
+  const [chatbotId, setChatbotId] = useState<string | null>(null);
   const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
   const [personality, setPersonality] = useState<Personality | null>(null);
-  // Free plan includes 100 conversations
   const [conversationRemaining, setConversationRemaining] = useState<number>(100);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [forwarded, setForwarded] = useState<ForwardedConversation[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
 
-  // Persist state client-side (still "no DB")
   useEffect(() => {
     if (typeof window === "undefined") return;
     const fromStorage = safeParseJson<{
+      userPlan?: UserPlan;
+      chatbotId: string | null;
       scrapedData: ScrapedData | null;
       personality: Personality | null;
       conversationRemaining: number;
       messages: ChatMessage[];
       forwarded: ForwardedConversation[];
       recentActivity: ActivityItem[];
+      tickets: Ticket[];
     }>(window.localStorage.getItem(STORAGE_KEY));
 
     if (fromStorage) {
+      setUserPlan(fromStorage.userPlan === "pro" ? "pro" : "free");
+      setChatbotId(fromStorage.chatbotId ?? null);
       setScrapedData(fromStorage.scrapedData ?? null);
       setPersonality(fromStorage.personality ?? null);
       setConversationRemaining(
@@ -131,6 +179,7 @@ export function BotProvider({ children }: { children: ReactNode }) {
       setMessages(Array.isArray(fromStorage.messages) ? fromStorage.messages : []);
       setForwarded(Array.isArray(fromStorage.forwarded) ? fromStorage.forwarded : []);
       setRecentActivity(Array.isArray(fromStorage.recentActivity) ? fromStorage.recentActivity : []);
+      setTickets(Array.isArray(fromStorage.tickets) ? fromStorage.tickets : []);
     }
   }, []);
 
@@ -139,15 +188,18 @@ export function BotProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        userPlan,
+        chatbotId,
         scrapedData,
         personality,
         conversationRemaining,
         messages,
         forwarded,
         recentActivity,
+        tickets,
       })
     );
-  }, [scrapedData, personality, conversationRemaining, messages, forwarded, recentActivity]);
+  }, [userPlan, chatbotId, scrapedData, personality, conversationRemaining, messages, forwarded, recentActivity, tickets]);
 
   const decrementConversations = useCallback(() => {
     setConversationRemaining((prev) => (prev > 0 ? prev - 1 : 0));
@@ -189,6 +241,33 @@ export function BotProvider({ children }: { children: ReactNode }) {
 
   const clearForwarded = useCallback(() => setForwarded([]), []);
 
+  const addTicket = useCallback(
+    (
+      item: Omit<Ticket, "id" | "ticketRef" | "createdAt"> &
+        Partial<Pick<Ticket, "id" | "ticketRef" | "createdAt">>
+    ) => {
+      const id = item.id ?? makeId("tkt");
+      const createdAt = item.createdAt ?? Date.now();
+      setTickets((prev) => {
+        const ticketRef = item.ticketRef ?? nextTicketRef(prev);
+        const ticket: Ticket = {
+          id,
+          ticketRef,
+          type: item.type,
+          customer: item.customer ?? "Customer",
+          queryPreview: item.queryPreview ?? "",
+          outcome: item.outcome,
+          status: item.status ?? "resolved",
+          conversationId: item.conversationId,
+          createdAt,
+        };
+        return [...prev, ticket];
+      });
+      return id;
+    },
+    []
+  );
+
   const addActivity = useCallback(
     (item: Omit<ActivityItem, "id" | "createdAt"> & Partial<Pick<ActivityItem, "id" | "createdAt">>) => {
       const id = item.id ?? makeId("act");
@@ -201,6 +280,10 @@ export function BotProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<BotContextValue>(
     () => ({
+      userPlan,
+      setUserPlan,
+      chatbotId,
+      setChatbotId,
       scrapedData,
       setScrapedData,
       personality,
@@ -218,8 +301,12 @@ export function BotProvider({ children }: { children: ReactNode }) {
       clearForwarded,
       recentActivity,
       addActivity,
+      tickets,
+      addTicket,
     }),
     [
+      userPlan,
+      chatbotId,
       scrapedData,
       personality,
       conversationRemaining,
@@ -233,6 +320,8 @@ export function BotProvider({ children }: { children: ReactNode }) {
       clearForwarded,
       recentActivity,
       addActivity,
+      tickets,
+      addTicket,
     ]
   );
 

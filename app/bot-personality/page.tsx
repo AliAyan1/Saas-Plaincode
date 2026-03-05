@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
@@ -34,8 +35,26 @@ export default function BotPersonalityPage() {
   const router = useRouter();
   const { scrapedData, personality, setPersonality } = useBot();
 
-  const handleSelect = (p: Personality) => {
+  useEffect(() => {
+    fetch("/api/chatbots/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.chatbot?.personality) setPersonality(data.chatbot.personality);
+      })
+      .catch(() => {});
+  }, [setPersonality]);
+
+  const handleSelect = async (p: Personality) => {
     setPersonality(p);
+    try {
+      await fetch("/api/chatbots/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personality: p }),
+      });
+    } catch {
+      // still update UI
+    }
     router.push("/bot-preview");
   };
 

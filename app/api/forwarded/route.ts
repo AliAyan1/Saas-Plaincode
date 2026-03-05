@@ -1,0 +1,150 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDbConnection } from "@/lib/db";
+import { getAuthFromCookie } from "@/lib/auth";
+import { randomUUID } from "crypto";
+
+export async function GET() {
+  try {
+    const auth = await getAuthFromCookie();
+    if (!auth?.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const conn = await getDbConnection();
+    const [rows] = await conn.execute(
+      `SELECT id, conversation_id AS conversationId, customer, preview, forwarded_as AS forwardedAs, ticket_ref AS ticketRef,
+       reply_text AS replyText, replied_at AS repliedAt, created_at AS createdAt
+       FROM forwarded_conversations WHERE user_id = ? ORDER BY created_at DESC`,
+      [auth.userId]
+    );
+    await conn.end();
+
+    type Row = { id: string; conversationId: string; customer: string; preview: string; forwardedAs: string; ticketRef: string | null; replyText: string | null; repliedAt: string | null; createdAt: string };
+    const list = (rows as Row[]).map((r) => ({
+      id: r.id,
+      conversationId: r.conversationId,
+      customer: r.customer,
+      preview: r.preview,
+      forwardedAs: r.forwardedAs,
+      ticketRef: r.ticketRef ?? null,
+      replyText: r.replyText ?? null,
+      repliedAt: r.repliedAt ?? null,
+      createdAt: r.createdAt,
+    }));
+
+    return NextResponse.json({ forwarded: list });
+  } catch (err) {
+    console.error("Forwarded list error:", err);
+    return NextResponse.json({ error: "Failed to load" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await getAuthFromCookie();
+    if (!auth?.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const conversationId = typeof body.conversationId === "string" ? body.conversationId.trim() : "";
+    const chatbotId = typeof body.chatbotId === "string" ? body.chatbotId.trim() : null;
+    const customer = typeof body.customer === "string" ? body.customer.trim() : "Customer";
+    const customerEmail = typeof body.customerEmail === "string" ? body.customerEmail.trim() : null;
+    const orderRef = typeof body.orderRef === "string" ? body.orderRef.trim() : null;
+    const preview = typeof body.preview === "string" ? body.preview.trim() : "";
+    const conversationText = typeof body.conversationText === "string" ? body.conversationText.trim() : "";
+
+    if (!conversationId || !preview) {
+      return NextResponse.json(
+        { error: "conversationId and preview are required" },
+        { status: 400 }
+      );
+    }
+
+    const conn = await getDbConnection();
+    let forwardEmail: string | null = null;
+    try {
+      const [userRows] = await conn.execute(
+        "SELECT forward_email FROM users WHERE id = ?",
+        [auth.userId]
+      );
+      const ur = (userRows as { forward_email?: string }[])[0];
+      forwardEmail = ur?.forward_email ?? null;
+    } catch {
+      // column may not exist before migration
+    }
+
+    const id = randomUUID();
+    await conn.execute(
+      `INSERT INTO forwarded_conversations (id, user_id, conversation_id, customer, customer_email, preview, forwarded_as, ticket_ref)
+       VALUES (?, ?, ?, ?, ?, ?, 'email', ?)`,
+      [id, auth.userId, conversationId, customer, customerEmail || null, preview, orderRef || null]
+    );
+
+    if (forwardEmail) {
+      let ticketRefForEmail: string | null = null;
+      try {
+        const [ticketRows] = await conn.execute(
+          "SELECT ticket_ref FROM tickets WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1",
+          [conversationId]
+        );
+        const tr = (ticketRows as { ticket_ref: string }[])[0];
+        if (tr) ticketRefForEmail = tr.ticket_ref;
+      } catch {
+        /* ignore */
+      }
+      const emailBody = [
+        `Forwarded conversation`,
+        ticketRefForEmail ? `Ticket: #${ticketRefForEmail}` : "",
+        `Customer: ${customer}`,
+        customerEmail ? `Email: ${customerEmail}` : "",
+        orderRef ? `Order/Ref: ${orderRef}` : "",
+        ``,
+        `Preview: ${preview}`,
+        ``,
+        conversationText ? `Full conversation:\n${conversationText}` : "",
+      ].filter(Boolean).join("\n");
+      // Ticket # so support sees it; [conv:...] so inbound webhook can match the reply
+      const subject = ticketRefForEmail
+        ? `Forwarded Ticket #${ticketRefForEmail} [conv:${conversationId}] ${preview.slice(0, 40)}${preview.length > 40 ? "…" : ""}`
+        : `Forwarded [conv:${conversationId}] ${preview.slice(0, 50)}${preview.length > 50 ? "…" : ""}`;
+      if (process.env.RESEND_API_KEY) {
+        try {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({
+              from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+              to: forwardEmail,
+              subject,
+              text: emailBody,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            console.error("Resend send failed:", res.status, err);
+          }
+        } catch (e) {
+          console.error("Resend send failed:", e);
+        }
+      } else {
+        console.log("[Forward to email] No RESEND_API_KEY — email not sent. Would send to:", forwardEmail);
+      }
+    }
+
+    await conn.execute(
+      "UPDATE conversations SET status = 'forwarded' WHERE id = ?",
+      [conversationId]
+    );
+    await conn.end();
+
+    return NextResponse.json({ ok: true, id });
+  } catch (err) {
+    console.error("Forwarded create error:", err);
+    return NextResponse.json({ error: "Failed to forward" }, { status: 500 });
+  }
+}

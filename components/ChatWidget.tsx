@@ -3,14 +3,21 @@
 import { useState } from "react";
 import ChatPanel from "@/components/ChatPanel";
 
-export default function ChatWidget() {
+interface ChatWidgetProps {
+  /** Force embed mode (minimal header, no Dashboard/Integration/conversation count). When true or when running inside an iframe, snippet-style UI is used. */
+  embed?: boolean;
+}
+
+export default function ChatWidget({ embed: embedProp }: ChatWidgetProps = {}) {
   const [open, setOpen] = useState(false);
+  const isInIframe = typeof window !== "undefined" && window.self !== window.top;
+  const embed = embedProp ?? isInIframe;
 
   return (
     <div className="fixed bottom-4 right-4 z-40">
       {open && (
         <div className="mb-3 w-[320px] sm:w-[380px]">
-          <ChatPanel compact />
+          <ChatPanel compact embed={embed} />
         </div>
       )}
       <button

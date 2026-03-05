@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Button from "./Button";
 import Logo from "./Logo";
 import ScheduleDemoModal from "./ScheduleDemoModal";
+import { useAppShell } from "./AppShellContext";
 
 const APP_ROUTES = [
   "/dashboard",
@@ -20,6 +21,8 @@ const APP_ROUTES = [
   "/handoff-rules",
   "/conversations",
   "/forwarded-conversations",
+  "/tickets",
+  "/onboarding",
   "/settings",
   "/admin",
 ];
@@ -45,8 +48,30 @@ export default function Navbar() {
   const router = useRouter();
   const [demoOpen, setDemoOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { sidebarVisible, setMobileSidebarOpen } = useAppShell();
 
   const isAppArea = APP_ROUTES.some((p) => pathname.startsWith(p));
+  const showAppMenuButton = isAppArea && sidebarVisible;
+
+  const [visible, setVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  const handleScroll = useCallback(() => {
+    const currentY = window.scrollY;
+    if (currentY < 10) {
+      setVisible(true);
+    } else if (currentY > lastScrollY.current) {
+      setVisible(false);
+    } else {
+      setVisible(true);
+    }
+    lastScrollY.current = currentY;
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   // Prevent body scroll when mobile menu is open
   useEffect(() => {
@@ -60,8 +85,9 @@ export default function Navbar() {
     };
   }, [mobileMenuOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
+      await fetch("/api/auth/logout", { method: "POST" });
       document.cookie = "mock-auth=; path=/; max-age=0";
       window.localStorage.removeItem("mock-auth");
     } catch {
@@ -120,17 +146,21 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-slate-800 bg-black/95 backdrop-blur">
-        <nav className="relative mx-auto flex max-w-7xl items-center justify-between gap-2 py-2 pl-2 pr-2 sm:gap-3 sm:py-1.5 sm:pl-2 sm:pr-6 lg:pl-3 lg:pr-8">
-          {/* Logo + title - always visible, truncate on very small screens */}
+      <header
+        className={`sticky top-0 z-50 w-full border-b border-slate-800 bg-black/95 backdrop-blur transition-transform duration-300 ${
+          visible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
+        <nav className="relative mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-4 sm:py-2 md:px-6 lg:px-8">
+          {/* Logo + title - truncate on small screens */}
           <Link
             href="/"
             onClick={closeMobileMenu}
-            className="flex min-w-0 shrink items-center gap-1.5 text-slate-100 no-underline sm:gap-2"
+            className="flex min-w-0 shrink items-center gap-1.5 text-slate-100 no-underline sm:gap-2.5"
           >
             <Logo size="lg" />
-            <span className="truncate text-sm font-semibold leading-tight sm:text-base sm:whitespace-nowrap lg:text-lg">
-              Ecommerce Support in One Click
+            <span className="truncate text-sm font-semibold leading-tight sm:text-base sm:whitespace-nowrap lg:text-lg max-w-[140px] sm:max-w-none">
+              Plaincode&apos;s AI Chatbot
             </span>
           </Link>
 
@@ -141,26 +171,37 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Desktop: right section */}
-          <div className="hidden shrink-0 items-center gap-3 sm:flex sm:gap-4">
+          {/* Desktop: right section - flex wrap on narrow md to avoid overflow */}
+          <div className="hidden shrink-0 items-center justify-end gap-2 sm:flex sm:gap-3 md:gap-4">
             {rightSection}
           </div>
 
-          {/* Mobile: hamburger */}
+          {/* Mobile: hamburger (landing menu or app sidebar) */}
           <div className="flex shrink-0 items-center gap-2 sm:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-              aria-expanded={mobileMenuOpen}
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            >
-              {mobileMenuOpen ? (
-                <CloseIcon className="h-6 w-6" />
-              ) : (
+            {showAppMenuButton ? (
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                aria-label="Open menu"
+              >
                 <MenuIcon className="h-6 w-6" />
-              )}
-            </button>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                aria-expanded={mobileMenuOpen}
+                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              >
+                {mobileMenuOpen ? (
+                  <CloseIcon className="h-6 w-6" />
+                ) : (
+                  <MenuIcon className="h-6 w-6" />
+                )}
+              </button>
+            )}
           </div>
         </nav>
 

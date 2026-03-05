@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <p className="text-sm text-slate-400">
-            © {new Date().getFullYear()} Ecommerce Support in One Click. All rights reserved.
+            © {new Date().getFullYear()} Plaincode&apos;s AI Chatbot. All rights reserved.
           </p>
           <nav className="flex flex-wrap items-center justify-center gap-6">
             <Link

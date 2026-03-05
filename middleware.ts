@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
 const PROTECTED = [
   "/dashboard",
@@ -11,15 +12,34 @@ const PROTECTED = [
   "/analytics",
   "/training-data",
   "/handoff-rules",
+  "/tickets",
+  "/conversations",
+  "/forwarded-conversations",
+  "/onboarding",
+  "/settings",
+  "/admin",
 ];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const needsAuth = PROTECTED.some((p) => pathname.startsWith(p));
   if (!needsAuth) return NextResponse.next();
 
-  const cookie = req.cookies.get("mock-auth")?.value;
-  if (cookie === "1") return NextResponse.next();
+  const mockAuth = req.cookies.get("mock-auth")?.value;
+  if (mockAuth === "1") return NextResponse.next();
+
+  const token = req.cookies.get("auth-token")?.value;
+  if (token) {
+    const secret = new TextEncoder().encode(
+      process.env.AUTH_SECRET || "default-secret-min-32-chars-for-dev-only"
+    );
+    try {
+      await jwtVerify(token, secret);
+      return NextResponse.next();
+    } catch {
+      /* invalid token */
+    }
+  }
 
   const url = req.nextUrl.clone();
   url.pathname = "/login";
@@ -39,6 +59,12 @@ export const config = {
     "/analytics/:path*",
     "/training-data/:path*",
     "/handoff-rules/:path*",
+    "/tickets/:path*",
+    "/conversations/:path*",
+    "/forwarded-conversations/:path*",
+    "/onboarding/:path*",
+    "/settings/:path*",
+    "/admin/:path*",
   ],
 };
 
