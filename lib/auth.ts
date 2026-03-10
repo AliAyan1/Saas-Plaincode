@@ -2,7 +2,8 @@ import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
 function getSecret(): string {
-  const secret = process.env.AUTH_SECRET;
+  const raw = process.env.AUTH_SECRET;
+  const secret = typeof raw === "string" ? raw.trim() : undefined;
   if (process.env.NODE_ENV === "production") {
     if (!secret || secret.length < 16) {
       throw new Error("AUTH_SECRET is required in production and must be at least 16 characters.");

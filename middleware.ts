@@ -46,9 +46,8 @@ export async function middleware(req: NextRequest) {
     } else {
       const token = req.cookies.get("auth-token")?.value;
       if (token) {
-        const secret = new TextEncoder().encode(
-          process.env.AUTH_SECRET || "default-secret-min-32-chars-for-dev-only"
-        );
+        const secretStr = (process.env.AUTH_SECRET || "default-secret-min-32-chars-for-dev-only").trim();
+        const secret = new TextEncoder().encode(secretStr);
         try {
           await jwtVerify(token, secret);
           res = NextResponse.next();
