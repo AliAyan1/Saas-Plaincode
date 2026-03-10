@@ -10,7 +10,8 @@ function getFrom(): string {
 }
 
 function getBaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
+  const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
+  const url = typeof raw === "string" ? raw.trim() : "";
   if (url) return url.startsWith("http") ? url : `https://${url}`;
   return "https://plainbot.io";
 }

@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import Card from "@/components/Card";
 import Logo from "@/components/Logo";
 
-export default function SignupPage() {
+function SignupContent() {
   const searchParams = useSearchParams();
   const planParam = searchParams.get("plan");
   const plan = planParam === "pro" ? "pro" : planParam === "custom" ? "custom" : "free";
@@ -184,5 +184,17 @@ export default function SignupPage() {
         © {new Date().getFullYear()} Plainbot. All rights reserved.
       </footer>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col bg-black items-center justify-center">
+        <p className="text-slate-400">Loading…</p>
+      </div>
+    }>
+      <SignupContent />
+    </Suspense>
   );
 }
