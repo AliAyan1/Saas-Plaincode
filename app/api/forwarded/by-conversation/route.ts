@@ -3,6 +3,8 @@ import { getDbConnection } from "@/lib/db";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*" };
 
+export const dynamic = "force-dynamic";
+
 /** Public: get support reply for a conversation (so chat/widget can show support reply) */
 export async function GET(req: NextRequest) {
   try {

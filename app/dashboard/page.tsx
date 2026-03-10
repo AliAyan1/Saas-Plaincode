@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
@@ -21,7 +21,7 @@ function formatTimeAgo(ms: number): string {
   return `${d}d ago`;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const { scrapedData, personality, forwarded, recentActivity, userPlan, chatbotId, setScrapedData, setPersonality, setChatbotId, setConversationRemaining, setUserPlan } = useBot();
   const isPro = userPlan === "pro";
@@ -371,5 +371,19 @@ export default function DashboardPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <AppShell>
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <p className="text-slate-400">Loading dashboard…</p>
+        </div>
+      </AppShell>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
