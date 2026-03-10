@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Button from "@/components/Button";
@@ -13,17 +14,9 @@ const STORE_OPTIONS = [
     label: "Shopify",
     description: "One-click app install. Connect your Shopify store in seconds.",
     icon: (
-      <svg className="h-10 w-10 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M18.5 6h-2.2L14.2 2.4c-.2-.5-.7-.9-1.2-.9H11c-.5 0-1 .4-1.2.9L8.7 6H6.5c-.8 0-1.5.7-1.5 1.5v12c0 .8.7 1.5 1.5 1.5h12c.8 0 1.5-.7 1.5-1.5v-12c0-.8-.7-1.5-1.5-1.5zm-4.2-2.5l1.2 2.5H9.5l1.2-2.5h3.6z"
-          fill="#96bf48"
-        />
-        <path d="M7 8h10v10H7V8z" fill="#7ab745" />
-        <path
-          d="M12.5 11c-.8 0-1.2.4-1.2.9 0 .5.3.8.9 1.2.8.4 1.3 1 1.3 1.8 0 1.2-.9 1.9-2 1.9-1 0-1.6-.4-2-1l1.2-.8c.2.4.5.6 1 .6.5 0 .8-.3.8-.7 0-.5-.4-.8-1-1.1-.8-.4-1.2-1-1.2-1.7 0-1 .8-1.7 1.9-1.7.8 0 1.4.3 1.8.8l-1.1.8c-.3-.3-.5-.5-.9-.5-.4 0-.6.2-.6.5 0 .3.2.5.6.7.9.4 1.4 1 1.4 1.8 0 1.1-.9 1.9-2.1 1.9-1 0-1.7-.4-2.1-1l1.2-.8c.3.5.7.7 1.2.7 1 0 1.5-.6 1.5-1.2 0-.5-.3-.9-1-1.2z"
-          fill="#fff"
-        />
-      </svg>
+      <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded">
+        <Image src="/logo-shopify.png" alt="Shopify" width={40} height={40} className="object-contain" />
+      </span>
     ),
   },
   {
@@ -106,7 +99,7 @@ export default function StoreTypePage() {
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
-              Plaincode&apos;s AI Chatbot
+              Plainbot
             </span>
           </Link>
         </div>

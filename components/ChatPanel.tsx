@@ -153,7 +153,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
     const question = input.trim();
     if (!question) return;
     if (conversationRemaining <= 0) {
-      setError("You have used all 100 conversations. Upgrade required.");
+      setError("You've used all your conversations this month. Upgrade or renew from the dashboard to continue.");
       return;
     }
 
@@ -181,7 +181,27 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
         }),
       });
 
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
+        if (res.status === 402) {
+          try {
+            const body = await res.json();
+            if (body?.limitReached) {
+              setError(
+                body.plan === "pro"
+                  ? "You've used all your Pro conversations this month. Renew your plan to continue."
+                  : "You've used all your free conversations. Upgrade to Pro to continue."
+              );
+              updateMessage(assistantId, {
+                content:
+                  "You've reached your conversation limit for this month. Upgrade to Pro (or renew) from your dashboard to keep chatting.",
+              });
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // fall through
+          }
+        }
         let message = "Something went wrong while contacting the AI.";
         try {
           const body = await res.json();
@@ -190,6 +210,9 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
           // ignore
         }
         throw new Error(message);
+      }
+      if (!res.body) {
+        throw new Error("No response from the chatbot.");
       }
 
       const convId = res.headers.get("X-Conversation-Id");
@@ -213,27 +236,27 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
         updateMessage(assistantId, { content: fullText || "..." });
       }
 
-      // If AI requested forward to support (e.g. cancel order, refund), strip marker and open form
+      // If AI requested forward to support (e.g. cancel order, refund), strip marker; backend already created ticket and sent email
       const forwardMarker = "[FORWARD_TO_SUPPORT]";
       if (fullText.includes(forwardMarker)) {
         const cleaned = fullText.replace(/\s*\[FORWARD_TO_SUPPORT\]\s*$/i, "").trim();
         updateMessage(assistantId, { content: cleaned || fullText });
         setShowForwardForm(true);
+        addTicket({
+          type: "forwarded_email",
+          customer: "Chat user",
+          queryPreview: question.length > 80 ? question.slice(0, 80) + "…" : question,
+          outcome: "Forwarded to support",
+          status: "open",
+          conversationId: conversationIdRef.current ?? undefined,
+        });
       }
 
-      setTicketResolved(true);
       decrementConversations();
       addActivity({
         type: "resolved",
         title: "Chat query answered",
         detail: question.length > 60 ? question.slice(0, 60) + "…" : question,
-      });
-      addTicket({
-        type: "ai_resolved",
-        customer: "Chat user",
-        queryPreview: question.length > 80 ? question.slice(0, 80) + "…" : question,
-        outcome: "Resolved by AI",
-        status: "resolved",
       });
     } catch (err: any) {
       updateMessage(assistantId, {
@@ -273,7 +296,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
                 Test your ecommerce assistant
               </p>
               <p className="text-xs text-slate-400">
-                {conversationRemaining} / 100 conversations remaining in Starter plan
+                {conversationRemaining} conversations remaining in your plan
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

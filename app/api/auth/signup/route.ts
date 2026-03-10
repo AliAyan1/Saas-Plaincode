@@ -3,13 +3,24 @@ import bcrypt from "bcryptjs";
 import { getDbConnection } from "@/lib/db";
 import { createToken, setAuthCookie } from "@/lib/auth";
 import { randomUUID } from "crypto";
+import { checkRateLimit, LIMITS } from "@/lib/rate-limit";
+import { sendFreeWelcomeEmail, sendProWelcomeEmail } from "@/lib/send-welcome-emails";
 
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(req, "auth", LIMITS.auth);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again in a minute." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+    );
+  }
   try {
     const body = await req.json();
     const email = (body.email as string)?.trim()?.toLowerCase();
     const password = body.password as string;
     const name = (body.name as string)?.trim() || null;
+    const planParam = (body.plan as string)?.toLowerCase();
+    const plan = planParam === "pro" ? "pro" : planParam === "custom" ? "custom" : "free";
 
     if (!email || !password) {
       return NextResponse.json(
@@ -45,8 +56,8 @@ export async function POST(req: NextRequest) {
     const userId = randomUUID();
 
     await conn.execute(
-      "INSERT INTO users (id, email, password_hash, name, plan, conversation_limit) VALUES (?, ?, ?, ?, 'free', 100)",
-      [userId, email, passwordHash, name]
+      "INSERT INTO users (id, email, password_hash, name, plan, conversation_limit) VALUES (?, ?, ?, ?, ?, ?)",
+      [userId, email, passwordHash, name, plan, plan === "free" ? 100 : 500]
     );
 
     await conn.end();
@@ -54,14 +65,23 @@ export async function POST(req: NextRequest) {
     const token = createToken({
       userId,
       email,
-      plan: "free",
+      plan,
     });
 
     await setAuthCookie(token);
 
+    if (plan === "free") {
+      sendFreeWelcomeEmail(email, name).catch((e) => console.error("Free welcome email error:", e));
+    }
+    if (plan === "custom") {
+      sendProWelcomeEmail(email, name).catch((e) => console.error("Custom welcome email error:", e));
+    }
+
     return NextResponse.json({
       ok: true,
-      user: { id: userId, email, name, plan: "free" },
+      user: { id: userId, email, name, plan },
+      redirectToPayment: plan === "pro",
+      redirectTo: plan === "custom" ? "/dashboard" : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

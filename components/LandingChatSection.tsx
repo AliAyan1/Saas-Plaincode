@@ -21,7 +21,7 @@ export default function LandingChatSection() {
               Add our snippet to any custom or WooCommerce site to embed the chatbot.
             </p>
             <div className="mt-8">
-              <Link href="/signup">
+              <Link href="/pricing">
                 <Button variant="primary">Create free account</Button>
               </Link>
               <span className="ml-4 text-sm text-slate-500">No credit card required</span>

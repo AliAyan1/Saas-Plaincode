@@ -34,7 +34,7 @@ export default function BotPreviewPage() {
           <div>
             <h1 className="text-3xl font-bold text-slate-100">Preview your assistant</h1>
             <p className="mt-2 text-slate-400">
-              Step 3 of 3 — Confirm the setup and jump into a live test chat.
+              Step 3 of 5 — Confirm the setup, then add knowledge & memory, then get your snippet.
             </p>
           </div>
 
@@ -80,9 +80,9 @@ export default function BotPreviewPage() {
             </Button>
             <Button
               variant="primary"
-              onClick={() => router.push("/integration")}
+              onClick={() => router.push("/knowledge")}
             >
-              Continue to integration
+              Continue to knowledge & memory
             </Button>
           </div>
       </div>

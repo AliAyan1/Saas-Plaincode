@@ -7,7 +7,6 @@ import Button from "@/components/Button";
 import Input from "@/components/Input";
 import Card from "@/components/Card";
 import Logo from "@/components/Logo";
-import GoogleIcon from "@/components/GoogleIcon";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,6 +34,14 @@ export default function LoginPage() {
         setError(data.error || "Invalid credentials.");
         setLoading(false);
         return;
+      }
+      const plan = data.user?.plan === "pro" ? "pro" : data.user?.plan === "custom" ? "custom" : "free";
+      try {
+        const raw = window.localStorage.getItem("bot-state-v2");
+        const state = raw ? JSON.parse(raw) : {};
+        window.localStorage.setItem("bot-state-v2", JSON.stringify({ ...state, userPlan: plan }));
+      } catch {
+        /* ignore */
       }
       router.push("/dashboard");
     } catch {
@@ -82,29 +89,12 @@ export default function LoginPage() {
           <div className="mb-8 text-center">
             <Link href="/" className="inline-flex items-center gap-2 text-slate-100">
               <Logo size="sm" />
-              <span className="font-semibold">Plaincode&apos;s AI Chatbot</span>
+              <span className="font-semibold">Plainbot</span>
             </Link>
             <h1 className="mt-6 text-2xl font-bold text-slate-100">Welcome back</h1>
             <p className="mt-2 text-slate-400">
               Enter your credentials to access your dashboard.
             </p>
-          </div>
-
-          <Button
-            variant="secondary"
-            fullWidth
-            className="flex items-center justify-center gap-2"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </Button>
-
-          <div className="my-6 flex items-center gap-4">
-            <span className="h-px flex-1 bg-slate-600" />
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-              or
-            </span>
-            <span className="h-px flex-1 bg-slate-600" />
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -168,7 +158,7 @@ export default function LoginPage() {
       </main>
 
       <footer className="py-4 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} Plaincode&apos;s AI Chatbot. All rights reserved.
+        © {new Date().getFullYear()} Plainbot. All rights reserved.
       </footer>
     </div>
   );

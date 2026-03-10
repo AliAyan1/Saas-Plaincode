@@ -1,6 +1,6 @@
-# Plaincode's AI Chatbot
+# Plainbot
 
-Production-ready Next.js frontend (Tailwind CSS) for the SaaS product **Plaincode's AI Chatbot** — AI customer support for e-commerce.
+Production-ready Next.js frontend (Tailwind CSS) for the SaaS product **Plainbot** — AI customer support for e-commerce.
 
 ## Setup
 

@@ -1,7 +1,16 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
-const SECRET = process.env.AUTH_SECRET || "default-secret-min-32-chars-for-dev-only";
+function getSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret.length < 16) {
+      throw new Error("AUTH_SECRET is required in production and must be at least 16 characters.");
+    }
+    return secret;
+  }
+  return secret || "default-secret-min-32-chars-for-dev-only";
+}
 
 const COOKIE_NAME = "auth-token";
 const MAX_AGE = 60 * 60 * 24; // 24 hours
@@ -16,14 +25,14 @@ export interface TokenPayload {
 export function createToken(payload: TokenPayload): string {
   return jwt.sign(
     { ...payload },
-    SECRET,
+    getSecret(),
     { expiresIn: MAX_AGE }
   );
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    const decoded = jwt.verify(token, SECRET) as TokenPayload;
+    const decoded = jwt.verify(token, getSecret()) as TokenPayload;
     return decoded;
   } catch {
     return null;

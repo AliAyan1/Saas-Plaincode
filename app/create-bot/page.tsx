@@ -162,46 +162,15 @@ export default function CreateBotPage() {
 
         <div className="mt-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-primary-400">
-            Step 1: Connect your {isShopify ? "Shopify" : "store"}
+            Step 1: Connect your store
           </p>
           <h1 className="mt-2 text-3xl font-bold text-slate-100">
-            {isShopify ? "Install our Shopify app" : "Connect your store"}
+            Connect your store
           </h1>
           <p className="mt-2 text-slate-400">
-            {isShopify
-              ? "One-click install. Our app connects to your Shopify store and syncs products, orders, and policies automatically."
-              : "Enter your website URL or add our snippet. Our AI will learn your products and brand."}
+            Enter your website URL. Our AI will learn your products and brand.
           </p>
         </div>
-
-        {isShopify ? (
-          <Card className="mt-6 space-y-6">
-            <div className="flex items-start gap-4 rounded-lg border border-primary-500/30 bg-primary-500/5 p-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-500/20 text-primary-400">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </span>
-              <div>
-                <h3 className="font-semibold text-slate-200">Shopify App Store</h3>
-                <p className="mt-1 text-sm text-slate-400">
-                  Install our app from the Shopify App Store. It will sync your store data in one click.
-                </p>
-                <a
-                  href="https://apps.shopify.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-block"
-                >
-                  <Button variant="primary">Go to Shopify App Store</Button>
-                </a>
-              </div>
-            </div>
-            <p className="text-sm text-slate-500">
-              Or connect via URL below if you prefer.
-            </p>
-          </Card>
-        ) : null}
 
         <Card className="mt-6 space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       typeof body.personality === "string" && ["Friendly", "Professional", "Sales-focused", "Premium Luxury"].includes(body.personality)
         ? body.personality
         : "Friendly";
-    const name = typeof body.name === "string" ? body.name.trim() || "My Chatbot" : "My Chatbot";
+    const name = typeof body.name === "string" ? body.name.trim() || "Plainbot" : "Plainbot";
 
     if (!websiteUrl) {
       return NextResponse.json({ error: "websiteUrl is required." }, { status: 400 });

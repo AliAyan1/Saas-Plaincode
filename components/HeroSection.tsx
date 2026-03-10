@@ -35,7 +35,7 @@ export default function HeroSection() {
           </div>
           <h1 className="opacity-0 animate-fade-in-up text-3xl font-bold tracking-tight text-slate-100 sm:text-4xl md:text-5xl lg:text-6xl [animation-delay:100ms] [animation-fill-mode:both]">
             <span className="bg-gradient-to-r from-primary-400 to-primary-500 bg-clip-text text-transparent">
-              Plaincode&apos;s AI Chatbot
+              Plainbot
             </span>
           </h1>
           <p className="mt-6 opacity-0 animate-fade-in-up text-lg text-slate-400 [animation-delay:200ms] [animation-fill-mode:both]">
@@ -45,7 +45,7 @@ export default function HeroSection() {
             Resolve orders, create tickets, and forward conversations — all on autopilot.
           </p>
           <div className="mt-8 flex flex-wrap gap-4 opacity-0 animate-fade-in-up [animation-delay:350ms] [animation-fill-mode:both]">
-            <Link href="/signup">
+            <Link href="/pricing">
               <Button variant="primary" className="min-w-[160px] transition-transform hover:scale-[1.02] active:scale-[0.98]">
                 Start Free Trial
               </Button>

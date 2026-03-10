@@ -5,14 +5,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const envPath = path.join(__dirname, "..", ".env.local");
-if (fs.existsSync(envPath)) {
-  fs.readFileSync(envPath, "utf8")
+const localPath = path.join(__dirname, "..", ".env.local");
+if (fs.existsSync(localPath)) {
+  fs.readFileSync(localPath, "utf8")
     .split("\n")
     .forEach((line) => {
       const match = line.match(/^([^#=]+)=(.*)$/);
       if (match) {
-        process.env[match[1].trim()] = match[2].trim();
+        process.env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, "");
       }
     });
 }
@@ -20,28 +20,39 @@ if (fs.existsSync(envPath)) {
 const mysql = require("mysql2/promise");
 
 async function hasColumn(conn, table, column) {
+  const [[db]] = await conn.execute("SELECT DATABASE() AS db");
+  const schema = (db && (db).db) || process.env.DB_NAME || "ecommerce_support";
   const [rows] = await conn.execute(
     "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-    [process.env.DB_NAME || "ecommerce_support", table, column]
+    [schema, table, column]
   );
   return Array.isArray(rows) && rows.length > 0;
 }
 
 async function run() {
-  const host = process.env.DB_HOST || "localhost";
-  const port = parseInt(process.env.DB_PORT || "3306", 10);
-  const user = process.env.DB_USER || "root";
-  const password = process.env.DB_PASSWORD || "";
-  const database = process.env.DB_NAME || "ecommerce_support";
+  const url = process.env.MYSQL_URL || process.env.DATABASE_URL;
+  let conn;
+  if (url) {
+    console.log("Connecting via MYSQL_URL...");
+    conn = await mysql.createConnection(url);
+  } else {
+    const host = process.env.DB_HOST || "localhost";
+    const port = parseInt(process.env.DB_PORT || "3306", 10);
+    const user = process.env.DB_USER || "root";
+    const password = process.env.DB_PASSWORD || "";
+    const database = process.env.DB_NAME || "ecommerce_support";
+    console.log("Connecting to MySQL...");
+    conn = await mysql.createConnection({
+      host,
+      port,
+      user,
+      password,
+      database,
+    });
+  }
 
-  console.log("Connecting to MySQL...");
-  const conn = await mysql.createConnection({
-    host,
-    port,
-    user,
-    password,
-    database,
-  });
+  const [[dbRow]] = await conn.execute("SELECT DATABASE() AS db");
+  const database = (dbRow && dbRow.db) || process.env.DB_NAME || "ecommerce_support";
 
   try {
     // 002: forward_email on users
@@ -51,6 +62,53 @@ async function run() {
       console.log("  OK");
     } else {
       console.log("users.forward_email already exists, skip.");
+    }
+
+    // 004: limit-reached tracking for upgrade emails
+    if (!(await hasColumn(conn, "users", "limit_reached_period"))) {
+      console.log("Adding users.limit_reached_period...");
+      await conn.execute("ALTER TABLE users ADD COLUMN limit_reached_period CHAR(7) DEFAULT NULL COMMENT 'YYYY-MM when limit-reached email was sent'");
+      console.log("  OK");
+    } else {
+      console.log("users.limit_reached_period already exists, skip.");
+    }
+    if (!(await hasColumn(conn, "users", "last_upgrade_reminder_at"))) {
+      console.log("Adding users.last_upgrade_reminder_at...");
+      await conn.execute("ALTER TABLE users ADD COLUMN last_upgrade_reminder_at TIMESTAMP NULL DEFAULT NULL");
+      console.log("  OK");
+    } else {
+      console.log("users.last_upgrade_reminder_at already exists, skip.");
+    }
+
+    // 006: Stripe customer and subscription IDs (for Pro recurring billing)
+    if (!(await hasColumn(conn, "users", "stripe_customer_id"))) {
+      console.log("Adding users.stripe_customer_id...");
+      await conn.execute("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(255) DEFAULT NULL");
+      console.log("  OK");
+    } else {
+      console.log("users.stripe_customer_id already exists, skip.");
+    }
+    if (!(await hasColumn(conn, "users", "stripe_subscription_id"))) {
+      console.log("Adding users.stripe_subscription_id...");
+      await conn.execute("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR(255) DEFAULT NULL");
+      console.log("  OK");
+    } else {
+      console.log("users.stripe_subscription_id already exists, skip.");
+    }
+
+    // 005: plan enum add 'custom' (free | pro | custom)
+    const [planColRows] = await conn.execute(
+      "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'plan'",
+      [database]
+    );
+    const planRow = Array.isArray(planColRows) && planColRows[0] ? planColRows[0] : null;
+    const planType = planRow ? String(planRow.COLUMN_TYPE || planRow.column_type || "").toLowerCase() : "";
+    if (planType && planType.indexOf("custom") === -1) {
+      console.log("Adding 'custom' to users.plan enum...");
+      await conn.execute("ALTER TABLE users MODIFY COLUMN plan ENUM('free','pro','custom') DEFAULT 'free'");
+      console.log("  OK");
+    } else {
+      console.log("users.plan already has 'custom', skip.");
     }
 
     // 002: forwarded_conversations table
@@ -124,6 +182,88 @@ async function run() {
         )
       `);
       console.log("  OK");
+    }
+
+    // chatbots.guard_rails (AI guard rails per chatbot)
+    if (!(await hasColumn(conn, "chatbots", "guard_rails"))) {
+      console.log("Adding chatbots.guard_rails...");
+      await conn.execute("ALTER TABLE chatbots ADD COLUMN guard_rails TEXT DEFAULT NULL");
+      console.log("  OK");
+    } else {
+      console.log("chatbots.guard_rails already exists, skip.");
+    }
+
+    // chatbots.uploaded_docs_text (PDF/TXT content for chat context)
+    if (!(await hasColumn(conn, "chatbots", "uploaded_docs_text"))) {
+      console.log("Adding chatbots.uploaded_docs_text...");
+      await conn.execute("ALTER TABLE chatbots ADD COLUMN uploaded_docs_text LONGTEXT DEFAULT NULL");
+      console.log("  OK");
+    } else {
+      console.log("chatbots.uploaded_docs_text already exists, skip.");
+    }
+
+    // chatbots.language (response language for the chatbot)
+    if (!(await hasColumn(conn, "chatbots", "language"))) {
+      console.log("Adding chatbots.language...");
+      await conn.execute("ALTER TABLE chatbots ADD COLUMN language VARCHAR(20) DEFAULT 'en'");
+      console.log("  OK");
+    } else {
+      console.log("chatbots.language already exists, skip.");
+    }
+
+    // conversation_usage (per-user per-month count for limits)
+    const [cuTables] = await conn.execute(
+      "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'conversation_usage'",
+      [database]
+    );
+    if (!Array.isArray(cuTables) || cuTables.length === 0) {
+      console.log("Creating conversation_usage...");
+      await conn.execute(`
+        CREATE TABLE conversation_usage (
+          id              CHAR(36) PRIMARY KEY,
+          user_id         CHAR(36) NOT NULL,
+          period_month    CHAR(7) NOT NULL,
+          count_used      INT DEFAULT 0,
+          created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_usage_user_period (user_id, period_month),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_usage_user (user_id)
+        )
+      `);
+      console.log("  OK");
+    } else {
+      console.log("conversation_usage already exists, skip.");
+    }
+
+    // 003: user_external_endpoints (per-user API endpoints for their DB)
+    const [uepTables] = await conn.execute(
+      "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'user_external_endpoints'",
+      [database]
+    );
+    if (!Array.isArray(uepTables) || uepTables.length === 0) {
+      console.log("Creating user_external_endpoints...");
+      await conn.execute(`
+        CREATE TABLE user_external_endpoints (
+          id              CHAR(36) PRIMARY KEY,
+          user_id         CHAR(36) NOT NULL,
+          chatbot_id      CHAR(36) DEFAULT NULL,
+          name            VARCHAR(100) NOT NULL,
+          base_url        VARCHAR(500) NOT NULL,
+          auth_type       ENUM('none', 'bearer', 'api_key_header', 'basic') DEFAULT 'none',
+          auth_value      VARCHAR(500) DEFAULT NULL,
+          method_default  VARCHAR(10) DEFAULT 'GET',
+          is_active       TINYINT(1) DEFAULT 1,
+          created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_uep_user (user_id),
+          INDEX idx_uep_chatbot (chatbot_id)
+        )
+      `);
+      console.log("  OK");
+    } else {
+      console.log("user_external_endpoints already exists, skip.");
     }
 
     console.log("\nMigrations finished.");

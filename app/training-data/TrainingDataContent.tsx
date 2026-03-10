@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { useRouter } from "next/navigation";
+
+const SITEMAP_INITIAL = 4;
+const PRODUCTS_INITIAL = 6;
 
 function statusClass(status: string) {
   if (status === "Fully trained") return "bg-emerald-500/15 text-emerald-300";
@@ -11,9 +15,20 @@ function statusClass(status: string) {
   return "bg-amber-500/15 text-amber-300";
 }
 
+const SITEMAP_ITEMS = [
+  { label: "Home (root)", status: "Fully trained" },
+  { label: "About us", status: "Fully trained" },
+  { label: "FAQ and Support", status: "Syncing" },
+  { label: "Policies / Privacy policy", status: "Fully trained" },
+  { label: "Policies / Refund policy", status: "Outdated" },
+  { label: "Contact", status: "Fully trained" },
+];
+
 export default function TrainingDataContent() {
   const router = useRouter();
   const { scrapedData } = useBot();
+  const [sitemapExpanded, setSitemapExpanded] = useState(false);
+  const [productsExpanded, setProductsExpanded] = useState(false);
   const products =
     scrapedData?.products && scrapedData.products.length > 0
       ? scrapedData.products
@@ -64,14 +79,7 @@ export default function TrainingDataContent() {
             customer-facing pages.
           </p>
           <div className="mt-5 space-y-3 text-xs">
-            {[
-              { label: "Home (root)", status: "Fully trained" },
-              { label: "About us", status: "Fully trained" },
-              { label: "FAQ and Support", status: "Syncing" },
-              { label: "Policies / Privacy policy", status: "Fully trained" },
-              { label: "Policies / Refund policy", status: "Outdated" },
-              { label: "Contact", status: "Fully trained" },
-            ].map((item) => (
+            {(sitemapExpanded ? SITEMAP_ITEMS : SITEMAP_ITEMS.slice(0, SITEMAP_INITIAL)).map((item) => (
               <div
                 key={item.label}
                 className="flex items-center justify-between rounded-lg bg-slate-900/60 px-3 py-2"
@@ -84,6 +92,15 @@ export default function TrainingDataContent() {
                 </span>
               </div>
             ))}
+            {SITEMAP_ITEMS.length > SITEMAP_INITIAL && (
+              <button
+                type="button"
+                onClick={() => setSitemapExpanded((e) => !e)}
+                className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-xs font-medium text-primary-400 hover:bg-slate-800"
+              >
+                {sitemapExpanded ? "View less" : `View more (${SITEMAP_ITEMS.length - SITEMAP_INITIAL} more)`}
+              </button>
+            )}
           </div>
         </Card>
 
@@ -96,22 +113,33 @@ export default function TrainingDataContent() {
           </p>
             <div className="mt-4 space-y-3 text-xs">
               {products ? (
-                products.map((p, idx) => (
-                  <div
-                    key={p.name + idx.toString()}
-                    className="flex items-center justify-between rounded-lg bg-slate-900/60 px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-slate-200">{p.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        Imported from crawl - Item #{idx + 1}
-                      </p>
+                <>
+                  {(productsExpanded ? products : products.slice(0, PRODUCTS_INITIAL)).map((p, idx) => (
+                    <div
+                      key={p.name + idx.toString()}
+                      className="flex items-center justify-between rounded-lg bg-slate-900/60 px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-slate-200">{p.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          Imported from crawl - Item #{idx + 1}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                        Active
+                      </span>
                     </div>
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                      Active
-                    </span>
-                  </div>
-                ))
+                  ))}
+                  {products.length > PRODUCTS_INITIAL && (
+                    <button
+                      type="button"
+                      onClick={() => setProductsExpanded((e) => !e)}
+                      className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-xs font-medium text-primary-400 hover:bg-slate-800"
+                    >
+                      {productsExpanded ? "View less" : `View more (${products.length - PRODUCTS_INITIAL} more)`}
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="space-y-3">
                   <p className="text-xs text-slate-500">

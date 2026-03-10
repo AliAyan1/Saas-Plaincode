@@ -244,7 +244,7 @@ export default function HomePage() {
                 Start for free and scale as your shop grows.
               </p>
             </AnimatedSection>
-            <div className="mt-12 grid gap-8 lg:grid-cols-2 max-w-4xl mx-auto">
+            <div className="mt-12 grid gap-8 sm:grid-cols-3 max-w-5xl mx-auto">
               {[
                 {
                   name: "Free",
@@ -256,25 +256,40 @@ export default function HomePage() {
                     "1 chatbot",
                     "Website scraping",
                   ],
-                  cta: "Start Free Trial",
+                  cta: "Start Free",
+                  href: "/signup?plan=free",
                   variant: "outline" as const,
                   recommended: false,
                 },
                 {
                   name: "Pro",
                   sub: "",
-                  price: "$99",
+                  price: "$500",
                   period: "/mo",
                   features: [
-                    "Forward full conversations to email",
-                    "Automatic ticket creation",
-                    "Increased conversion",
-                    "Email support",
-                    "Standard integration (add other integrations)",
                     "500 conversations/month",
-                    "Unlimited chatbots",
+                    "Same as Free, more conversations",
+                    "Forward full conversations to email",
+                    "Email when limit reached — renew anytime",
                   ],
                   cta: "Get Started",
+                  href: "/signup?plan=pro",
+                  variant: "primary" as const,
+                  recommended: false,
+                },
+                {
+                  name: "Custom",
+                  sub: "",
+                  price: "Custom",
+                  period: "",
+                  features: [
+                    "Custom integration with your systems",
+                    "Schedule a meeting via Calendly",
+                    "Your chatbot live in 7 days",
+                    "Payment after the meeting",
+                  ],
+                  cta: "Schedule a meeting",
+                  href: "/signup?plan=custom",
                   variant: "primary" as const,
                   recommended: true,
                 },
@@ -296,7 +311,9 @@ export default function HomePage() {
                     <span className="text-3xl font-bold text-slate-100">
                       {plan.price}
                     </span>
-                    <span className="text-slate-400">{plan.period}</span>
+                    {plan.period && (
+                      <span className="text-slate-400">{plan.period}</span>
+                    )}
                   </div>
                   <h3 className="mt-2 text-xl font-semibold text-slate-100">
                     {plan.name}
@@ -330,7 +347,7 @@ export default function HomePage() {
                     ))}
                   </ul>
                   <div className="mt-8">
-                    <Link href={plan.recommended ? "/signup" : "/signup"}>
+                    <Link href={plan.href}>
                       <Button
                         variant={plan.variant}
                         fullWidth
@@ -359,14 +376,9 @@ export default function HomePage() {
               Start your free trial. Setup takes less than 2 minutes.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Link href="/signup">
+              <Link href="/pricing">
                 <Button variant="primary" className="min-w-[160px] transition-transform hover:scale-105 active:scale-95">
                   Get Started Free
-                </Button>
-              </Link>
-              <Link href="/contact">
-                <Button variant="outline" className="min-w-[160px] transition-transform hover:scale-105 active:scale-95">
-                  Talk to an Expert
                 </Button>
               </Link>
             </div>

@@ -12,13 +12,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const email = typeof body.forwardEmail === "string" ? body.forwardEmail.trim() : "";
 
-    if (!email) {
-      return NextResponse.json(
-        { error: "Forward email is required" },
-        { status: 400 }
-      );
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { error: "Invalid email address" },
         { status: 400 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
@@ -21,17 +22,17 @@ function formatTimeAgo(ms: number): string {
 }
 
 export default function DashboardPage() {
-  const { scrapedData, personality, forwarded, recentActivity, userPlan, chatbotId, setScrapedData, setPersonality, setChatbotId } = useBot();
+  const searchParams = useSearchParams();
+  const { scrapedData, personality, forwarded, recentActivity, userPlan, chatbotId, setScrapedData, setPersonality, setChatbotId, setConversationRemaining, setUserPlan } = useBot();
   const isPro = userPlan === "pro";
+  const isProOrCustom = userPlan === "pro" || userPlan === "custom";
+  const isBusiness = userPlan === "business";
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState<{ totalConversations: number; conversationLimit: number; remaining: number } | null>(null);
   const [activityFromApi, setActivityFromApi] = useState<{ id: string; type: string; title: string; detail: string; createdAt: number }[]>([]);
   const [forwardedCountFromApi, setForwardedCountFromApi] = useState<number | null>(null);
   const [ticketsFromApi, setTicketsFromApi] = useState<{ id: string; ticketRef: string; type: string; status: string; outcome: string | null; customer: string; queryPreview: string; createdAt: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adminName, setAdminName] = useState("");
-  const [adminPersonality, setAdminPersonality] = useState<string>("Friendly");
-  const [adminSaving, setAdminSaving] = useState(false);
 
   const totalConversations = stats?.totalConversations ?? 0;
   const limit = stats?.conversationLimit ?? TOTAL_CONVERSATIONS_FALLBACK;
@@ -55,8 +56,6 @@ export default function DashboardPage() {
           if (botData.chatbot) {
             const c = botData.chatbot;
             setChatbotId(c.id);
-            setAdminName(c.name || "");
-            setAdminPersonality(c.personality || "Friendly");
             setScrapedData({
               url: c.websiteUrl || "",
               title: c.websiteTitle || "",
@@ -73,7 +72,9 @@ export default function DashboardPage() {
         }
         if (statsRes.ok) {
           const s = await statsRes.json();
-          setStats({ totalConversations: s.totalConversations ?? 0, conversationLimit: s.conversationLimit ?? 100, remaining: s.remaining ?? 0 });
+          const remaining = Math.max(0, s.remaining ?? 0);
+          setStats({ totalConversations: s.totalConversations ?? 0, conversationLimit: s.conversationLimit ?? 100, remaining });
+          setConversationRemaining(remaining);
         }
         if (activityRes.ok) {
           const a = await activityRes.json();
@@ -90,7 +91,27 @@ export default function DashboardPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [setScrapedData, setPersonality, setChatbotId]);
+  }, [setScrapedData, setPersonality, setChatbotId, setConversationRemaining]);
+
+  // After Stripe success redirect, refetch to sync Pro plan (webhook may have just run)
+  useEffect(() => {
+    if (searchParams.get("pro") !== "success") return;
+    const t = setTimeout(async () => {
+      const [meRes, statsRes] = await Promise.all([
+        fetch("/api/me"),
+        fetch("/api/conversations/stats"),
+      ]);
+      if (meRes.ok) {
+        const me = await meRes.json();
+        if (me?.plan === "pro") setUserPlan("pro");
+      }
+      if (statsRes.ok) {
+        const s = await statsRes.json();
+        setConversationRemaining(Math.max(0, s.remaining ?? 0));
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [searchParams, setUserPlan, setConversationRemaining]);
 
   const displayActivity = activityFromApi.length > 0 ? activityFromApi : recentActivity;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -111,9 +132,60 @@ export default function DashboardPage() {
     }
   };
 
+  const showProEmptyState = isProOrCustom && !loading && !chatbotId;
+  const limitReached = !loading && stats && remaining <= 0;
+  const CALENDLY_URL = "https://calendly.com/mahrukh-plaincode";
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {limitReached && (
+          <Card className="mb-8 border-amber-500/40 bg-amber-500/10">
+            <h2 className="text-lg font-semibold text-amber-200">
+              {isProOrCustom ? "You've used all your conversations this month" : "You've used all your free conversations"}
+            </h2>
+            <p className="mt-2 text-slate-300">
+              {isProOrCustom
+                ? "Renew your plan to keep your chatbot live and get 500 more conversations."
+                : "Upgrade to Pro to get 500 conversations per month. Your dashboard and all conversations stay the same."}
+            </p>
+            <Link href="/dashboard/upgrade">
+              <Button variant="primary" className="mt-4">
+                {isProOrCustom ? "Renew plan" : "Upgrade to Pro"}
+              </Button>
+            </Link>
+          </Card>
+        )}
+
+        {showProEmptyState && (
+          <Card className="mb-8 border-primary-500/30 bg-primary-500/10">
+            <h2 className="text-lg font-semibold text-primary-400">We&apos;re setting up your custom chatbot</h2>
+            <p className="mt-2 text-slate-300">
+              In about 7 days you&apos;ll see your working chatbot and snippet here. Our team will reach out to schedule a call and get you live.
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              Check your email for the Calendly link to book a time with our experts.
+            </p>
+          </Card>
+        )}
+
+        {isPro && chatbotId && isNewUser && (
+          <Card className="mb-8 border-primary-500/30 bg-primary-500/10">
+            <h2 className="text-lg font-semibold text-primary-400">Do you want a custom solution?</h2>
+            <p className="mt-2 text-slate-300">
+              Schedule a call with our team to tailor your chatbot and integrate with your database.
+            </p>
+            <a
+              href={CALENDLY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-block"
+            >
+              <Button variant="primary">Schedule a meeting</Button>
+            </a>
+          </Card>
+        )}
+
         {isNewUser && (
           <section className="mb-8">
             <Card className="border-primary-500/30 bg-primary-500/5">
@@ -252,64 +324,6 @@ export default function DashboardPage() {
                 </Link>
               </Card>
             </section>
-
-            {chatbotId && (
-              <section className="mb-8">
-                <Card>
-                  <h2 className="text-sm font-semibold text-slate-200">Admin – Chatbot settings</h2>
-                  <p className="mt-1 text-xs text-slate-400">Changes are saved automatically and go live on the chatbot.</p>
-                  <div className="mt-4 space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Chatbot name</label>
-                      <input
-                        type="text"
-                        value={adminName}
-                        onChange={(e) => setAdminName(e.target.value)}
-                        onBlur={() => {
-                          const v = adminName.trim();
-                          setAdminSaving(true);
-                          fetch("/api/chatbots/me", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ name: v || undefined }),
-                          })
-                            .then(() => setAdminSaving(false))
-                            .catch(() => setAdminSaving(false));
-                        }}
-                        className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                        placeholder="My Chatbot"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Personality</label>
-                      <select
-                        value={adminPersonality}
-                        onChange={(e) => {
-                          const v = e.target.value as "Friendly" | "Professional" | "Sales-focused" | "Premium Luxury";
-                          setAdminPersonality(v);
-                          setPersonality(v);
-                          setAdminSaving(true);
-                          fetch("/api/chatbots/me", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ personality: v }),
-                          })
-                            .then(() => setAdminSaving(false))
-                            .catch(() => setAdminSaving(false));
-                        }}
-                        className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                      >
-                        <option value="Friendly">Friendly</option>
-                        <option value="Professional">Professional</option>
-                        <option value="Sales-focused">Sales-focused</option>
-                        <option value="Premium Luxury">Premium Luxury</option>
-                      </select>
-                    </div>
-                    {adminSaving && <p className="text-xs text-slate-500">Saving…</p>}
-                  </div>
-                </Card>
-              </section>
-            )}
 
             <section id="recent" className="scroll-mt-4">
               <Card>

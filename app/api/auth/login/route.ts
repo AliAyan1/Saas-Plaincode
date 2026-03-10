@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getDbConnection } from "@/lib/db";
 import { createToken, setAuthCookie } from "@/lib/auth";
+import { checkRateLimit, LIMITS } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(req, "auth", LIMITS.auth);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again in a minute." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+    );
+  }
   try {
     const body = await req.json();
     const email = (body.email as string)?.trim()?.toLowerCase();

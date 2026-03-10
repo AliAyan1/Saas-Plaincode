@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
@@ -31,15 +31,33 @@ const PERSONALITIES: { id: Personality; title: string; description: string }[] =
   },
 ];
 
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Spanish" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "it", label: "Italian" },
+  { code: "pt", label: "Portuguese" },
+  { code: "nl", label: "Dutch" },
+  { code: "ar", label: "Arabic" },
+  { code: "hi", label: "Hindi" },
+  { code: "ja", label: "Japanese" },
+  { code: "zh", label: "Chinese" },
+];
+
 export default function BotPersonalityPage() {
   const router = useRouter();
   const { scrapedData, personality, setPersonality } = useBot();
+  const [guardRails, setGuardRails] = useState("");
+  const [language, setLanguage] = useState("en");
 
   useEffect(() => {
     fetch("/api/chatbots/me")
       .then((r) => r.json())
       .then((data) => {
         if (data.chatbot?.personality) setPersonality(data.chatbot.personality);
+        if (typeof data.chatbot?.guardRails === "string") setGuardRails(data.chatbot.guardRails);
+        if (data.chatbot?.language) setLanguage(data.chatbot.language);
       })
       .catch(() => {});
   }, [setPersonality]);
@@ -54,6 +72,27 @@ export default function BotPersonalityPage() {
       });
     } catch {
       // still update UI
+    }
+  };
+
+  const handleLanguageChange = (code: string) => {
+    setLanguage(code);
+    fetch("/api/chatbots/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: code }),
+    }).catch(() => {});
+  };
+
+  const handleContinue = async () => {
+    try {
+      await fetch("/api/chatbots/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personality: personality || undefined, guardRails, language }),
+      });
+    } catch {
+      // continue anyway
     }
     router.push("/bot-preview");
   };
@@ -79,6 +118,24 @@ export default function BotPersonalityPage() {
             </p>
           )}
         </div>
+
+        <Card className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-100">Response language</h2>
+          <p className="text-xs text-slate-400">
+            The chatbot will always respond in this language.
+          </p>
+          <select
+            value={language}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="w-full max-w-xs rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.label}
+              </option>
+            ))}
+          </select>
+        </Card>
 
         <div className="grid gap-5 md:grid-cols-2">
           {PERSONALITIES.map((p) => {
@@ -110,13 +167,29 @@ export default function BotPersonalityPage() {
           })}
         </div>
 
+        <Card className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-100">
+            AI guard raises (optional)
+          </h2>
+          <p className="text-xs text-slate-400">
+            Rules for how the AI should behave. One per line. Saved for this chatbot.
+          </p>
+          <textarea
+            value={guardRails}
+            onChange={(e) => setGuardRails(e.target.value)}
+            placeholder="e.g. Always be polite. Never share competitor prices. Keep answers under 3 sentences."
+            className="w-full min-h-[100px] rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none"
+            rows={4}
+          />
+        </Card>
+
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500">
-            You can change personality later without re-scraping your website.
+            You can change personality and guard raises later without re-scraping your website.
           </p>
           <Button
             variant="outline"
-            onClick={() => router.push("/bot-preview")}
+            onClick={handleContinue}
             disabled={!personality}
           >
             Continue to preview

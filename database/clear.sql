@@ -11,6 +11,7 @@ TRUNCATE TABLE conversation_usage;
 TRUNCATE TABLE forwarded_conversations;
 TRUNCATE TABLE tickets;
 TRUNCATE TABLE conversations;
+TRUNCATE TABLE user_external_endpoints;
 TRUNCATE TABLE chatbots;
 TRUNCATE TABLE users;
 

@@ -12,8 +12,7 @@ const STORE_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
   shopify: {
     title: "Shopify",
     steps: [
-      "Install our app from the Shopify App Store (recommended) for one-click connect.",
-      "Or add the snippet: Online Store → Themes → Edit code → theme.liquid, paste the script just before </body>.",
+      "Online Store → Themes → Edit code → theme.liquid, paste the script just before </body>.",
     ],
   },
   woocommerce: {
@@ -80,9 +79,9 @@ export default function IntegrationPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-10 sm:px-6 lg:px-8">
-        <StepIndicator currentStep={4} />
+        <StepIndicator currentStep={5} />
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary-400">Step 4: Install Widget</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary-400">Step 5: Install Widget</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-100">Integration</h1>
           <p className="mt-2 text-slate-400">
             Copy the snippet and add it to your store so the chat widget appears. Instructions depend on your platform.

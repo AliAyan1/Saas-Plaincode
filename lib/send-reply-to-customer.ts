@@ -28,6 +28,8 @@ export async function sendReplyToCustomerEmail(
   ].join("\n");
 
   try {
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 60_000);
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -40,7 +42,9 @@ export async function sendReplyToCustomerEmail(
         subject,
         text: body,
       }),
+      signal: abort.signal,
     });
+    clearTimeout(timeout);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       console.error("[Send reply to customer] Resend failed:", res.status, err);

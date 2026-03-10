@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import Card from "@/components/Card";
 import Logo from "@/components/Logo";
-import GoogleIcon from "@/components/GoogleIcon";
 
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get("plan");
+  const plan = planParam === "pro" ? "pro" : planParam === "custom" ? "custom" : "free";
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +40,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, plan }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -44,7 +48,21 @@ export default function SignupPage() {
         setLoading(false);
         return;
       }
-      window.location.href = "/onboarding/store-type";
+      const userPlan = data.user?.plan === "pro" ? "pro" : data.user?.plan === "custom" ? "custom" : "free";
+      try {
+        const raw = window.localStorage.getItem("bot-state-v2");
+        const state = raw ? JSON.parse(raw) : {};
+        window.localStorage.setItem("bot-state-v2", JSON.stringify({ ...state, userPlan }));
+      } catch {
+        /* ignore */
+      }
+      if (data.redirectToPayment) {
+        window.location.href = "/signup/payment";
+      } else if (data.redirectTo) {
+        window.location.href = data.redirectTo;
+      } else {
+        window.location.href = "/onboarding/store-type";
+      }
     } catch {
       setError("Signup failed. Try again.");
       setLoading(false);
@@ -58,7 +76,7 @@ export default function SignupPage() {
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
-              Plaincode&apos;s AI Chatbot
+              Plainbot
             </span>
           </Link>
           <p className="text-sm text-slate-400">
@@ -77,23 +95,16 @@ export default function SignupPage() {
             <p className="mt-2 text-slate-400">
               Get started with your 14-day free trial.
             </p>
-          </div>
-
-          <Button
-            variant="secondary"
-            fullWidth
-            className="mb-6 flex items-center justify-center gap-2"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </Button>
-
-          <div className="mb-6 flex items-center gap-4">
-            <span className="h-px flex-1 bg-slate-600" />
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-              or continue with email
-            </span>
-            <span className="h-px flex-1 bg-slate-600" />
+            {plan === "pro" && (
+              <p className="mt-2 text-sm text-primary-400 font-medium">
+                You’re signing up for the Pro plan ($500/month).
+              </p>
+            )}
+            {plan === "custom" && (
+              <p className="mt-2 text-sm text-primary-400 font-medium">
+                You're signing up for Custom — we'll send a Calendly link. Payment after the meeting.
+              </p>
+            )}
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -170,7 +181,7 @@ export default function SignupPage() {
       </main>
 
       <footer className="py-4 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} Plaincode&apos;s AI Chatbot. All rights reserved.
+        © {new Date().getFullYear()} Plainbot. All rights reserved.
       </footer>
     </div>
   );

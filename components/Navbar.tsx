@@ -5,8 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Button from "./Button";
 import Logo from "./Logo";
-import ScheduleDemoModal from "./ScheduleDemoModal";
 import { useAppShell } from "./AppShellContext";
+
+const CALENDLY_DEMO_URL = "https://calendly.com/mahrukh-plaincode";
 
 const APP_ROUTES = [
   "/dashboard",
@@ -46,7 +47,6 @@ function CloseIcon({ className }: { className?: string }) {
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [demoOpen, setDemoOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { sidebarVisible, setMobileSidebarOpen } = useAppShell();
 
@@ -128,9 +128,14 @@ export default function Navbar() {
     </button>
   ) : (
     <>
-      <Button variant="primary" onClick={() => { setDemoOpen(true); closeMobileMenu(); }}>
-        Demo
-      </Button>
+      <a
+        href={CALENDLY_DEMO_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={closeMobileMenu}
+      >
+        <Button variant="primary">Demo</Button>
+      </a>
       <Link
         href="/login"
         onClick={closeMobileMenu}
@@ -138,7 +143,7 @@ export default function Navbar() {
       >
         Log in
       </Link>
-      <Link href="/signup" onClick={closeMobileMenu}>
+      <Link href="/pricing" onClick={closeMobileMenu}>
         <Button variant="primary">Get Started</Button>
       </Link>
     </>
@@ -156,11 +161,11 @@ export default function Navbar() {
           <Link
             href="/"
             onClick={closeMobileMenu}
-            className="flex min-w-0 shrink items-center gap-1.5 text-slate-100 no-underline sm:gap-2.5"
+            className="flex min-w-0 shrink items-center gap-1 text-slate-100 no-underline"
           >
             <Logo size="lg" />
             <span className="truncate text-sm font-semibold leading-tight sm:text-base sm:whitespace-nowrap lg:text-lg max-w-[140px] sm:max-w-none">
-              Plaincode&apos;s AI Chatbot
+              Plainbot
             </span>
           </Link>
 
@@ -241,13 +246,15 @@ export default function Navbar() {
                   </button>
                 ) : (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => { setDemoOpen(true); closeMobileMenu(); }}
-                      className="rounded-lg bg-primary-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-primary-600"
+                    <a
+                      href={CALENDLY_DEMO_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={closeMobileMenu}
+                      className="rounded-lg bg-primary-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-primary-600 block"
                     >
                       Demo
-                    </button>
+                    </a>
                     <Link
                       href="/login"
                       onClick={closeMobileMenu}
@@ -256,7 +263,7 @@ export default function Navbar() {
                       Log in
                     </Link>
                     <Link
-                      href="/signup"
+                      href="/pricing"
                       onClick={closeMobileMenu}
                       className="rounded-lg bg-primary-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-primary-600"
                     >
@@ -269,7 +276,6 @@ export default function Navbar() {
           </div>
         )}
       </header>
-      <ScheduleDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </>
   );
 }

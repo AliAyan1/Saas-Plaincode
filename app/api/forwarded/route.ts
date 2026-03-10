@@ -63,6 +63,20 @@ export async function POST(req: NextRequest) {
     }
 
     const conn = await getDbConnection();
+    const [existing] = await conn.execute(
+      "SELECT id FROM forwarded_conversations WHERE conversation_id = ? AND user_id = ? LIMIT 1",
+      [conversationId, auth.userId]
+    );
+    const existingRow = Array.isArray(existing) && existing.length > 0 ? (existing[0] as { id: string }) : null;
+    const id = existingRow?.id ?? randomUUID();
+    if (!existingRow) {
+      await conn.execute(
+        `INSERT INTO forwarded_conversations (id, user_id, conversation_id, customer, customer_email, preview, forwarded_as, ticket_ref)
+         VALUES (?, ?, ?, ?, ?, ?, 'email', ?)`,
+        [id, auth.userId, conversationId, customer, customerEmail || null, preview, orderRef || null]
+      );
+    }
+
     let forwardEmail: string | null = null;
     try {
       const [userRows] = await conn.execute(
@@ -75,14 +89,7 @@ export async function POST(req: NextRequest) {
       // column may not exist before migration
     }
 
-    const id = randomUUID();
-    await conn.execute(
-      `INSERT INTO forwarded_conversations (id, user_id, conversation_id, customer, customer_email, preview, forwarded_as, ticket_ref)
-       VALUES (?, ?, ?, ?, ?, ?, 'email', ?)`,
-      [id, auth.userId, conversationId, customer, customerEmail || null, preview, orderRef || null]
-    );
-
-    if (forwardEmail) {
+    if (!existingRow && forwardEmail) {
       let ticketRefForEmail: string | null = null;
       try {
         const [ticketRows] = await conn.execute(
@@ -111,6 +118,8 @@ export async function POST(req: NextRequest) {
         : `Forwarded [conv:${conversationId}] ${preview.slice(0, 50)}${preview.length > 50 ? "…" : ""}`;
       if (process.env.RESEND_API_KEY) {
         try {
+          const resendAbort = new AbortController();
+          const resendTimeout = setTimeout(() => resendAbort.abort(), 60_000);
           const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -123,7 +132,9 @@ export async function POST(req: NextRequest) {
               subject,
               text: emailBody,
             }),
+            signal: resendAbort.signal,
           });
+          clearTimeout(resendTimeout);
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             console.error("Resend send failed:", res.status, err);
@@ -132,7 +143,7 @@ export async function POST(req: NextRequest) {
           console.error("Resend send failed:", e);
         }
       } else {
-        console.log("[Forward to email] No RESEND_API_KEY — email not sent. Would send to:", forwardEmail);
+        console.log("[Forward to email] Forward email set; RESEND_API_KEY missing — email not sent.");
       }
     }
 

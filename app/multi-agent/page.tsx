@@ -215,7 +215,7 @@ export default function MultiAgentPage() {
               Join leading e-commerce brands using our multi-agent system to deliver accurate, consistent, and scalable customer support.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Link href="/signup">
+              <Link href="/pricing">
                 <Button variant="primary" className="min-w-[160px]">Get Started</Button>
               </Link>
               <Link href="/pricing">

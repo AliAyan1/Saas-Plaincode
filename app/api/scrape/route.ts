@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { load } from "cheerio";
 import { runScraper, isCaptchaOrBotPage, detectStorePlatform, type StoreType } from "@/lib/scraper";
+import { checkRateLimit, LIMITS } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // product feed + sitemap + optional product pages
@@ -186,6 +187,13 @@ function extractProductsFromHomepage($: ReturnType<typeof load>): { name: string
 }
 
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(req, "scrape", LIMITS.scrape);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many scrape requests. Try again in a minute." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+    );
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const url = typeof body.url === "string" ? body.url.trim() : "";

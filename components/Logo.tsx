@@ -19,7 +19,7 @@ export default function Logo({ size = "md" }: { size?: LogoSize }) {
     >
       <Image
         src="/logo.png"
-        alt="Plaincode's AI Chatbot"
+        alt="Plainbot"
         width={width}
         height={height}
         className="object-contain"

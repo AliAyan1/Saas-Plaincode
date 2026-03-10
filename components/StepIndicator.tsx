@@ -4,10 +4,11 @@ const STEPS = [
   { num: 1, label: "Connect Store", path: "/create-bot" },
   { num: 2, label: "Website Feeds", path: "/training-data" },
   { num: 3, label: "Train AI", path: "/bot-personality" },
-  { num: 4, label: "Install Widget", path: "/integration" },
+  { num: 4, label: "Knowledge & memory", path: "/knowledge" },
+  { num: 5, label: "Install Widget", path: "/integration" },
 ] as const;
 
-export default function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 | 4 }) {
+export default function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 | 4 | 5 }) {
   return (
     <nav className="flex items-center justify-center gap-2 sm:gap-4 py-2">
       {STEPS.map((step) => {

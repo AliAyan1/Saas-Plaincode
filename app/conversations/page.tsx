@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
-import Button from "@/components/Button";
-import { useBot, ForwardMode } from "@/components/BotContext";
+import { useBot } from "@/components/BotContext";
 
 const statusStyles: Record<string, string> = {
   open: "bg-amber-500/15 text-amber-400",
@@ -25,7 +24,7 @@ function formatDate(d: Date | string): string {
 }
 
 export default function ConversationsPage() {
-  const { addForwarded, addActivity, addTicket, userPlan } = useBot();
+  useBot();
   const [conversations, setConversations] = useState<{ id: string; customer: string; preview: string; date: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,53 +44,6 @@ export default function ConversationsPage() {
       .catch(() => setConversations([]))
       .finally(() => setLoading(false));
   }, []);
-
-  const handleForward = async (conv: { id: string; customer: string; preview: string }, mode: ForwardMode) => {
-    if (mode === "email") {
-      try {
-        const res = await fetch("/api/forwarded", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversationId: conv.id,
-            customer: conv.customer,
-            preview: conv.preview,
-            conversationText: conv.preview,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          alert(data.error || "Failed to forward");
-          return;
-        }
-      } catch {
-        alert("Failed to forward to email.");
-        return;
-      }
-    }
-    addForwarded({
-      conversationId: conv.id,
-      customer: conv.customer,
-      preview: conv.preview,
-      forwardedAs: mode,
-    });
-    addActivity({
-      type: "forwarded",
-      title: mode === "email" ? "Forwarded to email" : "Forwarded as ticket",
-      detail: `${conv.customer}: ${conv.preview.slice(0, 50)}${conv.preview.length > 50 ? "…" : ""}`,
-    });
-    if (userPlan === "pro") {
-      const ticketType = mode === "email" ? "forwarded_email" : "forwarded_human";
-      addTicket({
-        type: ticketType,
-        customer: conv.customer,
-        queryPreview: conv.preview,
-        outcome: mode === "email" ? "Forwarded to email" : "Forwarded to human support",
-        status: "resolved",
-        conversationId: conv.id,
-      });
-    }
-  };
 
   return (
     <AppShell>
@@ -123,22 +75,6 @@ export default function ConversationsPage() {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <span className="shrink-0 text-xs text-slate-500">{conv.date}</span>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        className="px-3 py-1 text-xs"
-                        onClick={() => handleForward(conv, "email")}
-                      >
-                        Forward to email
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="px-3 py-1 text-xs"
-                        onClick={() => handleForward(conv, "ticket")}
-                      >
-                        Forward as ticket
-                      </Button>
-                    </div>
                   </div>
                 </li>
               ))}

@@ -74,7 +74,7 @@ export interface ActivityItem {
   createdAt: number;
 }
 
-export type UserPlan = "free" | "pro";
+export type UserPlan = "free" | "pro" | "custom" | "business";
 
 interface BotContextValue {
   userPlan: UserPlan;
@@ -167,7 +167,7 @@ export function BotProvider({ children }: { children: ReactNode }) {
     }>(window.localStorage.getItem(STORAGE_KEY));
 
     if (fromStorage) {
-      setUserPlan(fromStorage.userPlan === "pro" ? "pro" : "free");
+      setUserPlan(fromStorage.userPlan === "pro" ? "pro" : fromStorage.userPlan === "custom" ? "custom" : fromStorage.userPlan === "business" ? "business" : "free");
       setChatbotId(fromStorage.chatbotId ?? null);
       setScrapedData(fromStorage.scrapedData ?? null);
       setPersonality(fromStorage.personality ?? null);
@@ -181,6 +181,35 @@ export function BotProvider({ children }: { children: ReactNode }) {
       setRecentActivity(Array.isArray(fromStorage.recentActivity) ? fromStorage.recentActivity : []);
       setTickets(Array.isArray(fromStorage.tickets) ? fromStorage.tickets : []);
     }
+  }, []);
+
+  // On load (and after refresh), hydrate from server so nothing is lost
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    Promise.all([
+      fetch("/api/me").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/chatbots/me").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/conversations/stats").then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([me, bot, stats]) => {
+        if (me?.plan === "pro" || me?.plan === "free" || me?.plan === "custom") setUserPlan(me.plan);
+        if (bot?.chatbot) {
+          const c = bot.chatbot;
+          setChatbotId(c.id);
+          setScrapedData({
+            url: c.websiteUrl || "",
+            title: c.websiteTitle || "",
+            description: c.websiteDescription || "",
+            content: c.websiteContent || "",
+            products: Array.isArray(c.products) ? c.products : [],
+          });
+          setPersonality((c.personality as Personality) || "Friendly");
+        }
+        if (stats && typeof stats.remaining === "number") {
+          setConversationRemaining(Math.max(0, stats.remaining));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

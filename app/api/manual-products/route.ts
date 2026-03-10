@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAuthFromCookie } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,10 @@ const client = new OpenAI({
 });
 
 export async function POST(req: NextRequest) {
+  const auth = await getAuthFromCookie();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
       { error: "OPENAI_API_KEY is not configured on the server." },
