@@ -39,14 +39,14 @@ export default function BotPreviewPage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <Card className="space-y-3">
+            <Card className="min-w-0 space-y-3">
               <h2 className="text-sm font-semibold text-slate-200">
                 Configuration summary
               </h2>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-3">
-                  <dt className="text-slate-400">Website</dt>
-                  <dd className="text-right text-slate-100">
+                  <dt className="shrink-0 text-slate-400">Website</dt>
+                  <dd className="min-w-0 break-all text-right text-slate-100">
                     {scrapedData?.url || "Not connected"}
                   </dd>
                 </div>
@@ -63,11 +63,11 @@ export default function BotPreviewPage() {
               </dl>
             </Card>
 
-            <Card className="space-y-3">
+            <Card className="min-w-0 space-y-3">
               <h2 className="text-sm font-semibold text-slate-200">
                 Generated bot description
               </h2>
-              <p className="text-sm text-slate-300">{description}</p>
+              <p className="break-words text-sm text-slate-300">{description}</p>
             </Card>
           </div>
 

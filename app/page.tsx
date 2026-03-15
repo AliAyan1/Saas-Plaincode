@@ -255,6 +255,7 @@ export default function HomePage() {
                     "100 conversations/month",
                     "1 chatbot",
                     "Website scraping",
+                    "Upgrade anytime to get more",
                   ],
                   cta: "Start Free",
                   href: "/signup?plan=free",
@@ -323,7 +324,7 @@ export default function HomePage() {
                       </span>
                     )}
                   </h3>
-                  <ul className="mt-6 flex-1 space-y-3">
+                  <ul className="mt-6 min-h-[8.5rem] flex-1 space-y-3">
                     {plan.features.map((f) => (
                       <li
                         key={f}
@@ -346,7 +347,7 @@ export default function HomePage() {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-8">
+                  <div className="mt-8 shrink-0">
                     <Link href={plan.href}>
                       <Button
                         variant={plan.variant}

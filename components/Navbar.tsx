@@ -164,8 +164,13 @@ export default function Navbar() {
             className="flex min-w-0 shrink items-center gap-1 text-slate-100 no-underline"
           >
             <Logo size="lg" />
-            <span className="truncate text-sm font-semibold leading-tight sm:text-base sm:whitespace-nowrap lg:text-lg max-w-[140px] sm:max-w-none">
-              Plainbot
+            <span className="flex flex-col leading-tight max-w-[140px] sm:max-w-none">
+              <span className="truncate text-sm font-semibold sm:text-base sm:whitespace-nowrap lg:text-lg">
+                Plainbot
+              </span>
+              <span className="truncate text-[10px] text-slate-500 sm:text-xs">
+                Powered by Plaincode
+              </span>
             </span>
           </Link>
 

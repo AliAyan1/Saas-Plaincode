@@ -56,11 +56,13 @@ export default function LandingChatSection() {
                   All conversations from your site and test chat appear here. Change personality
                   and settings in the dashboard — they update in the chatbot on your website.
                 </p>
-                <Link href="/login">
-                  <Button variant="outline" className="w-full sm:w-auto">
-                    Log in to see your dashboard
-                  </Button>
-                </Link>
+                <div className="pt-6">
+                  <Link href="/login" className="inline-block">
+                    <Button variant="outline" className="w-full min-w-[200px] px-6 py-3 sm:w-auto">
+                      Log in to see your dashboard
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </Card>
           </div>

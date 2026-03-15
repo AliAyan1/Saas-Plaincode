@@ -37,6 +37,9 @@ export default function HeroSection() {
             <span className="bg-gradient-to-r from-primary-400 to-primary-500 bg-clip-text text-transparent">
               Plainbot
             </span>
+            <span className="mt-2 block text-lg font-normal text-slate-500 sm:text-xl md:text-2xl [animation-delay:100ms]">
+              Powered by Plaincode
+            </span>
           </h1>
           <p className="mt-6 opacity-0 animate-fade-in-up text-lg text-slate-400 [animation-delay:200ms] [animation-fill-mode:both]">
             Automatically create AI chatbots and voice bots trained on your website.

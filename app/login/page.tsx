@@ -72,7 +72,7 @@ export default function LoginPage() {
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
-              Plaincode&apos;s AI Chatbot
+              Plainbot
             </span>
           </Link>
           <p className="text-sm text-slate-400">

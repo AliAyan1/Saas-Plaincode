@@ -39,6 +39,8 @@ const LANGUAGES: { code: string; label: string }[] = [
   { code: "it", label: "Italian" },
   { code: "pt", label: "Portuguese" },
   { code: "nl", label: "Dutch" },
+  { code: "da", label: "Danish" },
+  { code: "sv", label: "Swedish" },
   { code: "ar", label: "Arabic" },
   { code: "hi", label: "Hindi" },
   { code: "ja", label: "Japanese" },

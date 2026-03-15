@@ -198,29 +198,30 @@ function DashboardContent() {
               <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
                 {widgetSnippet}
               </div>
-              <Button
-                variant="secondary"
-                className="mt-3"
-                onClick={handleCopySnippet}
-              >
-                {copied ? "Copied!" : "Copy snippet"}
-              </Button>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link href="/integration">
-                  <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
-                    Full integration guide
-                  </Button>
-                </Link>
-                <Link href="/test-chatbot">
-                  <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
-                    Test chatbot
-                  </Button>
-                </Link>
-                <Link href="/bot-personality">
-                  <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
-                    Change personality
-                  </Button>
-                </Link>
+              <div className="mt-3 flex flex-col items-start gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={handleCopySnippet}
+                >
+                  {copied ? "Copied!" : "Copy snippet"}
+                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/integration">
+                    <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
+                      Full integration guide
+                    </Button>
+                  </Link>
+                  <Link href="/test-chatbot">
+                    <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
+                      Test chatbot
+                    </Button>
+                  </Link>
+                  <Link href="/bot-personality">
+                    <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
+                      Change personality
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </Card>
           </section>

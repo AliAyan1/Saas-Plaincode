@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
     const personalityLabel = personality || "Friendly";
     const guardRailsText = (scrapedData as { guardRails?: string } | null)?.guardRails?.trim();
     const languageCode = (scrapedData as { language?: string } | null)?.language?.trim() || "en";
-    const languageNames: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", nl: "Dutch", ar: "Arabic", hi: "Hindi", ja: "Japanese", zh: "Chinese" };
+    const languageNames: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", nl: "Dutch", da: "Danish", sv: "Swedish", ar: "Arabic", hi: "Hindi", ja: "Japanese", zh: "Chinese" };
     const languageName = languageNames[languageCode] || languageCode;
     const languageRule = languageCode !== "en" ? `\nLANGUAGE: You must respond only in ${languageName}. All your replies must be in ${languageName}.\n` : "";
     let systemPrompt = `You are the AI assistant for this store. You speak as the store: use "we", "our website", "we offer". Your tone is professional, clear, and ${personalityLabel.toLowerCase()} where appropriate.${languageRule}
