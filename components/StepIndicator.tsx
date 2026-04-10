@@ -10,14 +10,17 @@ const STEPS = [
 
 export default function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 | 4 | 5 }) {
   return (
-    <nav className="flex items-center justify-center gap-2 sm:gap-4 py-2">
+    <nav
+      className="-mx-1 flex max-w-full items-center justify-start gap-1 overflow-x-auto overflow-y-hidden px-1 py-2 pb-3 sm:mx-0 sm:justify-center sm:gap-4 sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label="Onboarding steps"
+    >
       {STEPS.map((step) => {
         const isActive = step.num === currentStep;
         const isPast = step.num < currentStep;
         return (
           <div
             key={step.num}
-            className={`flex items-center gap-2 text-sm font-medium ${
+            className={`flex shrink-0 items-center gap-2 text-sm font-medium ${
               isActive ? "text-primary-400" : isPast ? "text-slate-400" : "text-slate-500"
             }`}
           >

@@ -10,9 +10,16 @@ function getBaseUrl(): string {
   return "http://localhost:3000";
 }
 
+type CheckoutPlan = "growth" | "pro" | "agency";
+
+function priceIdForPlan(plan: CheckoutPlan): string | undefined {
+  if (plan === "growth") return process.env.STRIPE_PRICE_ID_GROWTH_MONTHLY;
+  if (plan === "pro") return process.env.STRIPE_PRICE_ID_PRO_MONTHLY;
+  return process.env.STRIPE_PRICE_ID_AGENCY_MONTHLY;
+}
+
 /**
- * Create a Stripe Checkout Session for Pro plan ($500/month subscription).
- * User must be logged in and on Pro signup flow (plan=pro in session or they came from payment page).
+ * Creates Stripe Checkout for Growth ($79), Pro ($149), or Agency ($299) when price IDs are configured.
  */
 export async function POST(req: Request) {
   const rl = checkRateLimit(req, "stripe-checkout", 10);
@@ -27,12 +34,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let checkoutPlan: CheckoutPlan = "growth";
+  try {
+    const body = await req.json();
+    const p = typeof body?.plan === "string" ? body.plan.toLowerCase() : "";
+    if (p === "pro" || p === "growth" || p === "agency") checkoutPlan = p;
+  } catch {
+    /* empty body */
+  }
+
   const secretKey = process.env.STRIPE_SECRET_KEY;
-  const priceId = process.env.STRIPE_PRICE_ID_PRO_MONTHLY;
+  const priceId = priceIdForPlan(checkoutPlan);
   if (!secretKey || !priceId) {
-    console.error("STRIPE_SECRET_KEY or STRIPE_PRICE_ID_PRO_MONTHLY not set");
+    console.error(
+      "STRIPE_SECRET_KEY or price ID not set for plan:",
+      checkoutPlan,
+      "(STRIPE_PRICE_ID_GROWTH_MONTHLY / STRIPE_PRICE_ID_PRO_MONTHLY / STRIPE_PRICE_ID_AGENCY_MONTHLY)"
+    );
     return NextResponse.json(
-      { error: "Stripe is not configured. Please try again later." },
+      { error: "Stripe is not configured for this plan. Please try again later." },
       { status: 503 }
     );
   }
@@ -50,16 +70,18 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/dashboard?pro=success`,
-      cancel_url: `${baseUrl}/signup/payment`,
+      success_url: `${baseUrl}/dashboard?checkout=success`,
+      cancel_url: `${baseUrl}/signup/payment?plan=${checkoutPlan}`,
       customer_email: auth.email,
       client_reference_id: auth.userId,
       metadata: {
         userId: auth.userId,
+        checkoutPlan,
       },
       subscription_data: {
         metadata: {
           userId: auth.userId,
+          checkoutPlan,
         },
       },
     });

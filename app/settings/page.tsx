@@ -25,7 +25,7 @@ const LANGUAGES = [
 ];
 
 export default function SettingsPage() {
-  const { userPlan, setUserPlan } = useBot();
+  const { userPlan, setUserPlan, chatbotId } = useBot();
 
   const [forwardEmail, setForwardEmail] = useState("");
   const [forwardEmailSaving, setForwardEmailSaving] = useState(false);
@@ -51,14 +51,15 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/chatbots/me")
+    const q = chatbotId ? `?storeId=${encodeURIComponent(chatbotId)}` : "";
+    fetch(`/api/chatbots/me${q}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.chatbot?.personality) setPersonality(data.chatbot.personality);
         if (data.chatbot?.language) setLanguage(data.chatbot.language);
       })
       .catch(() => {});
-  }, []);
+  }, [chatbotId]);
 
   const handleSaveForwardEmail = () => {
     setForwardEmailMessage(null);
@@ -88,7 +89,7 @@ export default function SettingsPage() {
     fetch("/api/chatbots/me", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ personality: value }),
+      body: JSON.stringify({ personality: value, ...(chatbotId ? { chatbotId } : {}) }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -111,6 +112,7 @@ export default function SettingsPage() {
     setPdfUploading(true);
     const formData = new FormData();
     formData.append("file", pdfFile);
+    if (chatbotId) formData.append("chatbotId", chatbotId);
     fetch("/api/knowledge/upload", { method: "POST", body: formData })
       .then((r) => r.json())
       .then((data) => {
@@ -129,7 +131,9 @@ export default function SettingsPage() {
     <AppShell>
       <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-bold text-slate-100">Settings</h1>
-        <p className="mt-1 text-slate-400">Manage forward email, chatbot personality, and AI training documents.</p>
+        <p className="mt-1 text-slate-400">
+          Manage forward email, chatbot personality, and AI training documents for the store selected in the top bar.
+        </p>
 
         {/* Forward email */}
         <Card className="space-y-4">
@@ -199,7 +203,7 @@ export default function SettingsPage() {
               fetch("/api/chatbots/me", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ language: v }),
+                body: JSON.stringify({ language: v, ...(chatbotId ? { chatbotId } : {}) }),
               }).catch(() => {});
             }}
             className="w-full max-w-xs rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"

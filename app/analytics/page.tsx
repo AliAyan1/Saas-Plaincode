@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
+import { useBot } from "@/components/BotContext";
 
 const POLL_INTERVAL_MS = 15_000; // 15 seconds for real-time updates
 
@@ -40,39 +41,41 @@ const defaultAnalytics: Analytics = {
 const barColors = ["bg-primary-500", "bg-orange-400", "bg-sky-400", "bg-slate-500"];
 
 export default function AnalyticsPage() {
+  const { chatbotId } = useBot();
   const [data, setData] = useState<Analytics>(defaultAnalytics);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = () => {
-    fetch("/api/analytics/forwarded")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load");
-        return r.json();
-      })
-      .then((json) => {
-        setData({
-          totalForwarded: json.totalForwarded ?? 0,
-          percentChange: json.percentChange ?? 0,
-          sentToEmail: json.sentToEmail ?? 0,
-          liveAgentTransfers: json.liveAgentTransfers ?? 0,
-          emailPct: json.emailPct ?? 0,
-          livePct: json.livePct ?? 0,
-          distribution: Array.isArray(json.distribution) ? json.distribution : defaultAnalytics.distribution,
-          peakTime: json.peakTime ?? "—",
-          avgResponseMinutes: json.avgResponseMinutes ?? null,
-        });
-        setError(null);
-      })
-      .catch(() => setError("Could not load analytics"))
-      .finally(() => setLoading(false));
-  };
-
   useEffect(() => {
+    const q = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
+    const fetchAnalytics = () => {
+      fetch(`/api/analytics/forwarded${q}`)
+        .then((r) => {
+          if (!r.ok) throw new Error("Failed to load");
+          return r.json();
+        })
+        .then((json) => {
+          setData({
+            totalForwarded: json.totalForwarded ?? 0,
+            percentChange: json.percentChange ?? 0,
+            sentToEmail: json.sentToEmail ?? 0,
+            liveAgentTransfers: json.liveAgentTransfers ?? 0,
+            emailPct: json.emailPct ?? 0,
+            livePct: json.livePct ?? 0,
+            distribution: Array.isArray(json.distribution) ? json.distribution : defaultAnalytics.distribution,
+            peakTime: json.peakTime ?? "—",
+            avgResponseMinutes: json.avgResponseMinutes ?? null,
+          });
+          setError(null);
+        })
+        .catch(() => setError("Could not load analytics"))
+        .finally(() => setLoading(false));
+    };
+    setLoading(true);
     fetchAnalytics();
     const interval = setInterval(fetchAnalytics, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, []);
+  }, [chatbotId]);
 
   return (
     <AppShell>

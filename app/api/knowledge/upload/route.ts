@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const requestedBotId =
+      typeof formData.get("chatbotId") === "string" ? (formData.get("chatbotId") as string).trim() : "";
     if (!file || !file.size) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
@@ -64,18 +66,27 @@ export async function POST(req: NextRequest) {
     }
 
     const conn = await getDbConnection();
-    const [rows] = await conn.execute(
-      "SELECT id FROM chatbots WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
-      [auth.userId]
-    );
-    const bots = rows as { id: string }[];
+    let chatbotId: string | null = null;
+    if (requestedBotId) {
+      const [owned] = await conn.execute(
+        "SELECT id FROM chatbots WHERE id = ? AND user_id = ?",
+        [requestedBotId, auth.userId]
+      );
+      if ((owned as { id: string }[]).length > 0) chatbotId = requestedBotId;
+    }
+    if (!chatbotId) {
+      const [rows] = await conn.execute(
+        "SELECT id FROM chatbots WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        [auth.userId]
+      );
+      const bots = rows as { id: string }[];
+      if (bots.length > 0) chatbotId = bots[0].id;
+    }
     await conn.end();
 
-    if (bots.length === 0) {
+    if (!chatbotId) {
       return NextResponse.json({ error: "No chatbot found. Create a bot first (e.g. connect your store)." }, { status: 400 });
     }
-
-    const chatbotId = bots[0].id;
     const conn2 = await getDbConnection();
     try {
       await conn2.execute(

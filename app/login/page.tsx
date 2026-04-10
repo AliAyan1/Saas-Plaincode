@@ -35,7 +35,15 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      const plan = data.user?.plan === "pro" ? "pro" : data.user?.plan === "custom" ? "custom" : "free";
+      const rawPlan = data.user?.plan as string | undefined;
+      const plan =
+        rawPlan === "growth" || rawPlan === "pro" || rawPlan === "agency"
+          ? rawPlan
+          : rawPlan === "custom"
+            ? "agency"
+            : rawPlan === "business"
+              ? "pro"
+              : "free";
       try {
         const raw = window.localStorage.getItem("bot-state-v2");
         const state = raw ? JSON.parse(raw) : {};
@@ -68,24 +76,24 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col bg-black">
       <header className="border-b border-slate-800 bg-black">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2.5 text-slate-100">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
               Plainbot
             </span>
           </Link>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 sm:text-right">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="font-medium text-primary-400 hover:text-primary-300">
+            <Link href="/signup?plan=free" className="font-medium text-primary-400 hover:text-primary-300">
               Sign up
             </Link>
           </p>
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md p-8 shadow-soft-lg">
+      <main className="flex flex-1 items-start justify-center px-4 py-8 sm:items-center sm:px-6 sm:py-12 lg:px-8">
+        <Card className="w-full max-w-md p-6 shadow-soft-lg sm:p-8">
           <div className="mb-8 text-center">
             <Link href="/" className="inline-flex items-center gap-2 text-slate-100">
               <Logo size="sm" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
@@ -24,6 +25,7 @@ export default function CreateBotPage() {
   const { setScrapedData, scrapedData, addActivity, setChatbotId, personality } = useBot();
   const [storeType, setStoreType] = useState<string | null>(null);
   const [storeTypeLoading, setStoreTypeLoading] = useState(true);
+  const [atStoreLimit, setAtStoreLimit] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -42,6 +44,18 @@ export default function CreateBotPage() {
       .catch(() => setStoreType("custom"))
       .finally(() => setStoreTypeLoading(false));
   }, [router]);
+
+  useEffect(() => {
+    if (storeTypeLoading) return;
+    fetch("/api/chatbots/me")
+      .then((r) => r.json())
+      .then((d) => {
+        const lim = d.storeLimit;
+        const cnt = typeof d.storeCount === "number" ? d.storeCount : 0;
+        setAtStoreLimit(lim !== null && lim !== undefined && cnt >= lim);
+      })
+      .catch(() => setAtStoreLimit(false));
+  }, [storeTypeLoading]);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +169,30 @@ export default function CreateBotPage() {
 
   const isShopify = storeType === "shopify";
 
+  if (atStoreLimit) {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+          <Card className="border-amber-500/30 bg-amber-500/10 p-6">
+            <h2 className="text-lg font-semibold text-amber-200">Store limit reached</h2>
+            <p className="mt-2 text-slate-300">
+              Your plan allows a limited number of connected stores. Upgrade to add another, or select a store from the
+              dropdown in the top bar to open its dashboard.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/dashboard">
+                <Button variant="primary">Go to dashboard</Button>
+              </Link>
+              <Link href="/pricing">
+                <Button variant="outline">View pricing</Button>
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -186,12 +224,17 @@ export default function CreateBotPage() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   className="flex-1"
+                  inputMode="url"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  enterKeyHint="go"
+                  spellCheck={false}
                 />
                 <Button
                   type="submit"
                   disabled={loading}
                   variant="primary"
-                  className="shrink-0"
+                  className="w-full shrink-0 sm:w-auto"
                 >
                   {loading ? "Analyzing…" : "Analyze Website"}
                 </Button>

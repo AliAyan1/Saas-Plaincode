@@ -201,20 +201,32 @@ export async function POST(req: NextRequest) {
           "SELECT conversation_limit AS conversationLimit, plan, email, name, limit_reached_period AS limitReachedPeriod FROM users WHERE id = ?",
           [botUserId]
         );
-        const u = (userRows as { conversationLimit?: number; plan?: string; email?: string; name?: string | null; limitReachedPeriod?: string | null }[])[0];
-        const limit = u?.conversationLimit ?? 100;
+        const u = (userRows as {
+          conversationLimit?: number | null;
+          plan?: string;
+          email?: string;
+          name?: string | null;
+          limitReachedPeriod?: string | null;
+        }[])[0];
+        const rawLimit = u?.conversationLimit;
+        const unlimited = rawLimit === null || rawLimit === undefined;
+        const limit = unlimited ? Number.POSITIVE_INFINITY : (rawLimit ?? 100);
         const [usageRows] = await conn2.execute(
           "SELECT count_used AS countUsed FROM conversation_usage WHERE user_id = ? AND period_month = ?",
           [botUserId, period]
         );
         const countUsed = (usageRows as { countUsed?: number }[])[0]?.countUsed ?? 0;
-        if (countUsed >= limit) {
+        if (!unlimited && countUsed >= limit) {
+          const paid =
+            u?.plan === "growth" ||
+            u?.plan === "pro" ||
+            u?.plan === "agency" ||
+            u?.plan === "custom" ||
+            u?.plan === "business";
           if (u?.limitReachedPeriod !== period && u?.email) {
-            sendLimitReachedEmail(
-              u.email,
-              u.plan === "pro" || u.plan === "custom" ? "pro" : "free",
-              u.name ?? null
-            ).catch((e) => console.error("[Chat] Limit-reached email error:", e));
+            sendLimitReachedEmail(u.email, paid ? "pro" : "free", u.name ?? null).catch((e) =>
+              console.error("[Chat] Limit-reached email error:", e)
+            );
             await conn2.execute(
               "UPDATE users SET limit_reached_period = ? WHERE id = ?",
               [period, botUserId]
@@ -223,12 +235,11 @@ export async function POST(req: NextRequest) {
           await conn2.end();
           return NextResponse.json(
             {
-              error:
-                u?.plan === "pro" || u?.plan === "custom"
-                  ? "You've used all your conversations this month. Renew your plan to continue."
-                  : "Your free plan conversations are used up. Upgrade to Pro to continue.",
+              error: paid
+                ? "You've used all your conversations this month. Renew your plan to continue."
+                : "Your free plan conversations are used up. Upgrade to a paid plan to continue.",
               limitReached: true,
-              plan: u?.plan === "pro" || u?.plan === "custom" ? "pro" : "free",
+              plan: paid ? "paid" : "free",
             },
             { status: 402, headers: corsHeaders }
           );

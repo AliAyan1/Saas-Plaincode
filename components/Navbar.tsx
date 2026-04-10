@@ -6,8 +6,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Button from "./Button";
 import Logo from "./Logo";
 import { useAppShell } from "./AppShellContext";
-
-const CALENDLY_DEMO_URL = "https://calendly.com/mahrukh-plaincode";
+import StoreSwitcher from "./StoreSwitcher";
 
 const APP_ROUTES = [
   "/dashboard",
@@ -102,18 +101,18 @@ export default function Navbar() {
   const navLinks = !isAppArea ? (
     <>
       <Link
-        href="/multi-agent"
-        onClick={closeMobileMenu}
-        className="text-sm font-medium text-slate-400 hover:text-slate-100"
-      >
-        Multi-Agent
-      </Link>
-      <Link
         href="/pricing"
         onClick={closeMobileMenu}
         className="text-sm font-medium text-slate-400 hover:text-slate-100"
       >
         Pricing
+      </Link>
+      <Link
+        href="/multi-agent"
+        onClick={closeMobileMenu}
+        className="text-sm font-medium text-slate-400 hover:text-slate-100"
+      >
+        Multi-Agent
       </Link>
     </>
   ) : null;
@@ -128,14 +127,6 @@ export default function Navbar() {
     </button>
   ) : (
     <>
-      <a
-        href={CALENDLY_DEMO_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={closeMobileMenu}
-      >
-        <Button variant="primary">Demo</Button>
-      </a>
       <Link
         href="/login"
         onClick={closeMobileMenu}
@@ -143,8 +134,10 @@ export default function Navbar() {
       >
         Log in
       </Link>
-      <Link href="/pricing" onClick={closeMobileMenu}>
-        <Button variant="primary">Get Started</Button>
+      <Link href="/signup?plan=free" onClick={closeMobileMenu}>
+        <Button variant="primary" className="whitespace-normal text-center text-xs sm:text-sm">
+          Start free, no card needed
+        </Button>
       </Link>
     </>
   );
@@ -161,18 +154,19 @@ export default function Navbar() {
           <Link
             href="/"
             onClick={closeMobileMenu}
-            className="flex min-w-0 shrink items-center gap-1 text-slate-100 no-underline"
+            className="flex min-w-0 shrink items-center gap-2 text-slate-100 no-underline"
           >
             <Logo size="lg" />
-            <span className="flex flex-col leading-tight max-w-[140px] sm:max-w-none">
-              <span className="truncate text-sm font-semibold sm:text-base sm:whitespace-nowrap lg:text-lg">
-                Plainbot
-              </span>
-              <span className="truncate text-[10px] text-slate-500 sm:text-xs">
-                Powered by Plaincode
-              </span>
+            <span className="truncate text-sm font-semibold sm:text-base sm:whitespace-nowrap lg:text-lg">
+              Plainbot
             </span>
           </Link>
+
+          {isAppArea && (
+            <div className="min-w-0 flex-1 px-2 sm:px-4">
+              <StoreSwitcher />
+            </div>
+          )}
 
           {/* Desktop: center links */}
           {!isAppArea && (
@@ -225,18 +219,18 @@ export default function Navbar() {
               {navLinks && (
                 <div className="flex flex-col gap-1 border-b border-slate-800 pb-4">
                   <Link
-                    href="/multi-agent"
-                    onClick={closeMobileMenu}
-                    className="rounded-lg px-3 py-2.5 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-                  >
-                    Multi-Agent
-                  </Link>
-                  <Link
                     href="/pricing"
                     onClick={closeMobileMenu}
                     className="rounded-lg px-3 py-2.5 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                   >
                     Pricing
+                  </Link>
+                  <Link
+                    href="/multi-agent"
+                    onClick={closeMobileMenu}
+                    className="rounded-lg px-3 py-2.5 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                  >
+                    Multi-Agent
                   </Link>
                 </div>
               )}
@@ -251,15 +245,6 @@ export default function Navbar() {
                   </button>
                 ) : (
                   <>
-                    <a
-                      href={CALENDLY_DEMO_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={closeMobileMenu}
-                      className="rounded-lg bg-primary-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-primary-600 block"
-                    >
-                      Demo
-                    </a>
                     <Link
                       href="/login"
                       onClick={closeMobileMenu}
@@ -268,11 +253,11 @@ export default function Navbar() {
                       Log in
                     </Link>
                     <Link
-                      href="/pricing"
+                      href="/signup?plan=free"
                       onClick={closeMobileMenu}
                       className="rounded-lg bg-primary-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-primary-600"
                     >
-                      Get Started
+                      Start free, no card needed
                     </Link>
                   </>
                 )}

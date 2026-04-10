@@ -22,7 +22,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             className={`
-              w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-slate-100
+              w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-base text-slate-100
               placeholder:text-slate-500
               focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30
               disabled:cursor-not-allowed disabled:opacity-60
@@ -36,7 +36,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             <button
               type="button"
               onClick={() => setShowPassword((p) => !p)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              className="absolute right-1 top-1/2 flex h-11 min-w-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-lg text-slate-500 hover:bg-slate-700/50 hover:text-slate-300"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? (

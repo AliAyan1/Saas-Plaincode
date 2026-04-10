@@ -1,19 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthFromCookie } from "@/lib/auth";
 import { getDbConnection } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await getAuthFromCookie();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const chatbotId = req.nextUrl.searchParams.get("chatbotId")?.trim() || null;
+
   try {
     const conn = await getDbConnection();
+    const botClause = chatbotId ? " AND chatbot_id = ?" : "";
+    const params: string[] = chatbotId ? [auth.userId, chatbotId] : [auth.userId];
     const [rows] = await conn.execute(
       `SELECT id, type, title, detail, created_at AS createdAt
-       FROM activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
-      [auth.userId]
+       FROM activity_log WHERE user_id = ?${botClause} ORDER BY created_at DESC LIMIT 50`,
+      params
     );
     await conn.end();
 

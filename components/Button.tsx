@@ -36,7 +36,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled}
         className={`
-          inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all
+          inline-flex min-h-[44px] touch-manipulation items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all
           disabled:opacity-50 disabled:cursor-not-allowed
           ${variantStyles[variant]}
           ${fullWidth ? "w-full" : ""}

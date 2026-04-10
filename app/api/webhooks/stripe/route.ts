@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getDbConnection } from "@/lib/db";
-import { sendProWelcomeEmail } from "@/lib/send-welcome-emails";
+import { sendPaidPlanWelcomeEmail } from "@/lib/send-welcome-emails";
+import { conversationLimitForPlan, type BillingPlan } from "@/lib/plans";
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2026-02-25.clover" })
   : null;
+
+function planFromCheckoutMetadata(
+  raw: string | undefined | null
+): Exclude<BillingPlan, "free"> {
+  const p = (raw || "growth").toLowerCase();
+  if (p === "pro") return "pro";
+  if (p === "agency") return "agency";
+  return "growth";
+}
 
 export async function POST(req: NextRequest) {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
@@ -47,6 +57,9 @@ export async function POST(req: NextRequest) {
           console.error("Stripe checkout.session.completed: no userId in metadata");
           break;
         }
+        const checkoutPlan = planFromCheckoutMetadata(session.metadata?.checkoutPlan);
+        const convLimit = conversationLimitForPlan(checkoutPlan);
+
         const subscriptionId =
           typeof session.subscription === "string"
             ? session.subscription
@@ -58,11 +71,11 @@ export async function POST(req: NextRequest) {
 
         const conn = await getDbConnection();
         await conn.execute(
-          `UPDATE users SET plan = 'pro', conversation_limit = 500,
+          `UPDATE users SET plan = ?, conversation_limit = ?,
            limit_reached_period = NULL, last_upgrade_reminder_at = NULL,
            stripe_customer_id = ?, stripe_subscription_id = ?
            WHERE id = ?`,
-          [customerId, subscriptionId ?? null, userId]
+          [checkoutPlan, convLimit, customerId, subscriptionId ?? null, userId]
         );
         const [rows] = await conn.execute(
           "SELECT email, name FROM users WHERE id = ?",
@@ -71,8 +84,8 @@ export async function POST(req: NextRequest) {
         await conn.end();
         const user = (rows as { email: string; name: string | null }[])[0];
         if (user?.email) {
-          sendProWelcomeEmail(user.email, user.name ?? null).catch((e) =>
-            console.error("Pro welcome email after Stripe:", e)
+          sendPaidPlanWelcomeEmail(user.email, user.name ?? null, checkoutPlan).catch((e) =>
+            console.error("Paid welcome email after Stripe:", e)
           );
         }
         break;
@@ -103,13 +116,10 @@ export async function POST(req: NextRequest) {
       }
 
       case "invoice.paid": {
-        // Recurring payment succeeded. User stays pro; no DB change needed.
-        // Monthly conversation_usage gives them 500 each period.
         break;
       }
 
       default:
-        // Unhandled event type
         break;
     }
   } catch (err) {

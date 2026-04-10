@@ -22,17 +22,17 @@ export default function Footer() {
               Terms
             </Link>
             <Link
+              href="/pricing/agency"
+              className="text-sm text-slate-400 hover:text-primary-400"
+            >
+              Agency
+            </Link>
+            <Link
               href="/contact"
               className="text-sm text-slate-400 hover:text-primary-400"
             >
               Contact
             </Link>
-            <a
-              href="mailto:hello@plainbot.io"
-              className="text-sm text-slate-400 hover:text-primary-400"
-            >
-              hello@plainbot.io
-            </a>
           </nav>
         </div>
       </div>

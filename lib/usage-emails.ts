@@ -3,8 +3,6 @@
  * Uses: RESEND_API_KEY, EMAIL_FROM, NEXT_PUBLIC_APP_URL.
  */
 
-const CALENDLY_URL = "https://calendly.com/mahrukh-plaincode";
-
 function getFrom(): string {
   return process.env.EMAIL_FROM || "hello@plainbot.io";
 }
@@ -37,9 +35,9 @@ export async function sendLimitReachedEmail(
     ? [
         greeting,
         "",
-        "You've used all your Pro conversations for this month.",
+        "You've used all your plan conversations for this month.",
         "",
-        "Renew your plan to keep your chatbot live and get 500 more conversations.",
+        "Renew your subscription to keep your chatbot live and reset your monthly limit.",
         "",
         `Log in and renew: ${getBaseUrl()}/login`,
         "",
@@ -52,7 +50,7 @@ export async function sendLimitReachedEmail(
         "",
         "You've used all 100 free conversations for this month.",
         "",
-        "Upgrade to Pro to get 500 conversations per month and keep your chatbot working. Your dashboard and all conversations stay the same.",
+        "Upgrade to a paid plan for more conversations each month. See plainbot.io/pricing for Growth, Pro, and Agency.",
         "",
         `Upgrade here: ${getBaseUrl()}/pricing`,
         "",
@@ -124,7 +122,7 @@ export async function sendUpgradeReminderEmail(
         "",
         "This is a quick reminder: your free plan conversations are used up.",
         "",
-        "Upgrade to Pro to get 500 conversations per month and keep your chatbot working:",
+        "Upgrade to a paid plan to keep your chatbot working:",
         "",
         ` ${getBaseUrl()}/pricing`,
         "",
@@ -161,5 +159,3 @@ export async function sendUpgradeReminderEmail(
     return { ok: false, error: "Failed to send" };
   }
 }
-
-export { CALENDLY_URL, getBaseUrl };

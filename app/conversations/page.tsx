@@ -24,12 +24,14 @@ function formatDate(d: Date | string): string {
 }
 
 export default function ConversationsPage() {
-  useBot();
+  const { chatbotId } = useBot();
   const [conversations, setConversations] = useState<{ id: string; customer: string; preview: string; date: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/conversations")
+    setLoading(true);
+    const q = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
+    fetch(`/api/conversations${q}`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.conversations)) {
@@ -43,7 +45,7 @@ export default function ConversationsPage() {
       })
       .catch(() => setConversations([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [chatbotId]);
 
   return (
     <AppShell>

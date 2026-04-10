@@ -1,24 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthFromCookie } from "@/lib/auth";
 import { getDbConnection } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await getAuthFromCookie();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const chatbotId = req.nextUrl.searchParams.get("chatbotId")?.trim() || null;
+
   try {
     const conn = await getDbConnection();
+    const params: (string | null)[] = [auth.userId];
+    let botFilter = "";
+    if (chatbotId) {
+      botFilter = " AND b.id = ?";
+      params.push(chatbotId);
+    }
     const [rows] = await conn.execute(
       `SELECT c.id, c.customer_name AS customerName, c.customer_email AS customerEmail,
        c.status, c.created_at AS createdAt,
        (SELECT content FROM chat_messages WHERE conversation_id = c.id AND role = 'user' ORDER BY created_at ASC LIMIT 1) AS preview
        FROM conversations c
-       INNER JOIN chatbots b ON b.id = c.chatbot_id AND b.user_id = ?
+       INNER JOIN chatbots b ON b.id = c.chatbot_id AND b.user_id = ?${botFilter}
        ORDER BY c.created_at DESC
        LIMIT 100`,
-      [auth.userId]
+      params
     );
     await conn.end();
 

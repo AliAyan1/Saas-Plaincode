@@ -36,6 +36,7 @@ const config: Config = {
         "scale-in": "scaleIn 0.5s ease-out forwards",
         "float": "float 6s ease-in-out infinite",
         "glow-pulse": "glowPulse 2.5s ease-in-out infinite",
+        "plainbot-shimmer": "plainbotShimmer 3.5s ease-in-out infinite",
       },
       keyframes: {
         fadeIn: {
@@ -61,6 +62,10 @@ const config: Config = {
         glowPulse: {
           "0%, 100%": { opacity: "0.5" },
           "50%": { opacity: "0.8" },
+        },
+        plainbotShimmer: {
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
         },
       },
     },

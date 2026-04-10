@@ -7,6 +7,8 @@ import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
+import { nearLimitConversationThreshold, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
+import { CUSTOM_PLAN_CALENDLY_URL } from "@/lib/calendly";
 
 const TOTAL_CONVERSATIONS_FALLBACK = 100;
 
@@ -23,36 +25,67 @@ function formatTimeAgo(ms: number): string {
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const { scrapedData, personality, forwarded, recentActivity, userPlan, chatbotId, setScrapedData, setPersonality, setChatbotId, setConversationRemaining, setUserPlan } = useBot();
-  const isPro = userPlan === "pro";
-  const isProOrCustom = userPlan === "pro" || userPlan === "custom";
-  const isBusiness = userPlan === "business";
+  const {
+    scrapedData,
+    personality,
+    forwarded,
+    recentActivity,
+    userPlan,
+    chatbotId,
+    setScrapedData,
+    setPersonality,
+    setChatbotId,
+    setConversationRemaining,
+    setUserPlan,
+    setStores,
+    setStoreLimit,
+  } = useBot();
+  const isPaidPlan =
+    userPlan === "growth" ||
+    userPlan === "pro" ||
+    userPlan === "agency" ||
+    userPlan === "custom" ||
+    userPlan === "business";
   const [copied, setCopied] = useState(false);
-  const [stats, setStats] = useState<{ totalConversations: number; conversationLimit: number; remaining: number } | null>(null);
+  const [stats, setStats] = useState<{
+    totalConversations: number;
+    conversationLimit: number | null;
+    remaining: number | null;
+    unlimited: boolean;
+  } | null>(null);
   const [activityFromApi, setActivityFromApi] = useState<{ id: string; type: string; title: string; detail: string; createdAt: number }[]>([]);
   const [forwardedCountFromApi, setForwardedCountFromApi] = useState<number | null>(null);
   const [ticketsFromApi, setTicketsFromApi] = useState<{ id: string; ticketRef: string; type: string; status: string; outcome: string | null; customer: string; queryPreview: string; createdAt: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   const totalConversations = stats?.totalConversations ?? 0;
-  const limit = stats?.conversationLimit ?? TOTAL_CONVERSATIONS_FALLBACK;
-  const remaining = stats?.remaining ?? limit;
+  const statsUnlimited = stats?.unlimited ?? false;
+  const limit = statsUnlimited ? null : (stats?.conversationLimit ?? TOTAL_CONVERSATIONS_FALLBACK);
+  const remaining = statsUnlimited
+    ? UNLIMITED_CONVERSATIONS_DISPLAY
+    : (stats?.remaining ?? limit ?? TOTAL_CONVERSATIONS_FALLBACK);
   const isNewUser = scrapedData && personality;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        const storeParam = chatbotId ? `?storeId=${encodeURIComponent(chatbotId)}` : "";
+        const botFilter = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
         const [botRes, statsRes, activityRes, forwardedRes, ticketsRes] = await Promise.all([
-          fetch("/api/chatbots/me"),
+          fetch(`/api/chatbots/me${storeParam}`),
           fetch("/api/conversations/stats"),
-          fetch("/api/activity"),
-          fetch("/api/forwarded"),
-          fetch("/api/tickets"),
+          fetch(`/api/activity${botFilter}`),
+          fetch(`/api/forwarded${botFilter}`),
+          fetch(`/api/tickets${botFilter}`),
         ]);
         if (cancelled) return;
         if (botRes.ok) {
           const botData = await botRes.json();
+          if (Array.isArray(botData.chatbots)) setStores(botData.chatbots);
+          if (botData.storeLimit !== undefined) setStoreLimit(botData.storeLimit);
           if (botData.chatbot) {
             const c = botData.chatbot;
             setChatbotId(c.id);
@@ -72,9 +105,24 @@ function DashboardContent() {
         }
         if (statsRes.ok) {
           const s = await statsRes.json();
-          const remaining = Math.max(0, s.remaining ?? 0);
-          setStats({ totalConversations: s.totalConversations ?? 0, conversationLimit: s.conversationLimit ?? 100, remaining });
-          setConversationRemaining(remaining);
+          if (s.unlimited) {
+            setStats({
+              totalConversations: s.totalConversations ?? 0,
+              conversationLimit: null,
+              remaining: null,
+              unlimited: true,
+            });
+            setConversationRemaining(UNLIMITED_CONVERSATIONS_DISPLAY);
+          } else {
+            const rem = Math.max(0, s.remaining ?? 0);
+            setStats({
+              totalConversations: s.totalConversations ?? 0,
+              conversationLimit: s.conversationLimit ?? 100,
+              remaining: rem,
+              unlimited: false,
+            });
+            setConversationRemaining(rem);
+          }
         }
         if (activityRes.ok) {
           const a = await activityRes.json();
@@ -91,23 +139,88 @@ function DashboardContent() {
       }
     })();
     return () => { cancelled = true; };
-  }, [setScrapedData, setPersonality, setChatbotId, setConversationRemaining]);
+  }, [chatbotId, setScrapedData, setPersonality, setChatbotId, setConversationRemaining, setStores, setStoreLimit]);
 
-  // After Stripe success redirect, refetch to sync Pro plan (webhook may have just run)
+  const handleSelfServeUpgrade = async (target: "growth" | "pro") => {
+    setUpgradeError(null);
+    setUpgradeBusy(true);
+    try {
+      if (target === "growth") {
+        const res = await fetch("/api/stripe/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan: "growth" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) {
+          setUpgradeError(typeof data.error === "string" ? data.error : "Could not start checkout.");
+          setUpgradeBusy(false);
+          return;
+        }
+        window.location.href = data.url as string;
+        return;
+      }
+
+      const res = await fetch("/api/stripe/upgrade-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetPlan: "pro" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.useCheckout) {
+        const res2 = await fetch("/api/stripe/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan: "pro" }),
+        });
+        const d2 = await res2.json().catch(() => ({}));
+        if (!res2.ok || !d2.url) {
+          setUpgradeError(typeof d2.error === "string" ? d2.error : "Could not start checkout.");
+          setUpgradeBusy(false);
+          return;
+        }
+        window.location.href = d2.url as string;
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        setUpgradeError(typeof data.error === "string" ? data.error : "Upgrade failed.");
+        setUpgradeBusy(false);
+        return;
+      }
+      setUserPlan("pro");
+      window.location.href = "/dashboard?upgrade=success";
+    } catch {
+      setUpgradeError("Something went wrong.");
+      setUpgradeBusy(false);
+    }
+  };
+
+  // After Stripe checkout redirect or in-app subscription upgrade, refresh plan from DB
   useEffect(() => {
-    if (searchParams.get("pro") !== "success") return;
+    const ok =
+      searchParams.get("checkout") === "success" ||
+      searchParams.get("pro") === "success" ||
+      searchParams.get("upgrade") === "success";
+    if (!ok) return;
     const t = setTimeout(async () => {
+      await fetch("/api/auth/refresh-session", { method: "POST" });
       const [meRes, statsRes] = await Promise.all([
         fetch("/api/me"),
         fetch("/api/conversations/stats"),
       ]);
       if (meRes.ok) {
         const me = await meRes.json();
-        if (me?.plan === "pro") setUserPlan("pro");
+        if (me?.plan === "growth" || me?.plan === "pro" || me?.plan === "agency") {
+          setUserPlan(me.plan);
+        }
       }
       if (statsRes.ok) {
         const s = await statsRes.json();
-        setConversationRemaining(Math.max(0, s.remaining ?? 0));
+        if (s.unlimited) {
+          setConversationRemaining(UNLIMITED_CONVERSATIONS_DISPLAY);
+        } else {
+          setConversationRemaining(Math.max(0, s.remaining ?? 0));
+        }
       }
     }, 1500);
     return () => clearTimeout(t);
@@ -132,57 +245,133 @@ function DashboardContent() {
     }
   };
 
-  const showProEmptyState = isProOrCustom && !loading && !chatbotId;
-  const limitReached = !loading && stats && remaining <= 0;
-  const CALENDLY_URL = "https://calendly.com/mahrukh-plaincode";
+  const showAgencyOnboarding = userPlan === "agency" && !loading && !chatbotId;
+  const limitReached = !loading && stats && !stats.unlimited && (stats.remaining ?? 0) <= 0;
+
+  const nearThreshold =
+    stats && !stats.unlimited && stats.conversationLimit != null
+      ? nearLimitConversationThreshold(stats.conversationLimit)
+      : null;
+  const hasHeadroom = Boolean(stats && !stats.unlimited && (stats.remaining ?? 0) > 0);
+  const showFreeNearLimit =
+    !loading &&
+    userPlan === "free" &&
+    hasHeadroom &&
+    nearThreshold !== null &&
+    stats !== null &&
+    stats.totalConversations >= nearThreshold;
+  const showGrowthNearLimit =
+    !loading &&
+    userPlan === "growth" &&
+    hasHeadroom &&
+    nearThreshold !== null &&
+    stats !== null &&
+    stats.totalConversations >= nearThreshold;
 
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {upgradeError && (
+          <p className="mb-4 rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-300">
+            {upgradeError}
+          </p>
+        )}
+
+        {showFreeNearLimit && (
+          <Card className="mb-8 border-primary-500/40 bg-primary-500/10">
+            <h2 className="text-lg font-semibold text-primary-200">
+              You&apos;re nearly at your limit — upgrade to Growth and never get cut off.
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              You&apos;ve used {stats?.totalConversations ?? 0} of {stats?.conversationLimit ?? 100} conversations this month. Upgrade in one step with Stripe — no calls required.
+            </p>
+            <Button
+              variant="primary"
+              className="mt-4"
+              disabled={upgradeBusy}
+              onClick={() => handleSelfServeUpgrade("growth")}
+            >
+              {upgradeBusy ? "Redirecting…" : "Upgrade to Growth"}
+            </Button>
+          </Card>
+        )}
+
+        {showGrowthNearLimit && (
+          <Card className="mb-8 border-primary-500/40 bg-primary-500/10">
+            <h2 className="text-lg font-semibold text-primary-200">
+              You&apos;re nearly at your limit — upgrade to Pro for more headroom.
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              You&apos;ve used {stats?.totalConversations ?? 0} of {stats?.conversationLimit ?? 1000} conversations this month. Move to Pro with one click (your subscription updates in Stripe).
+            </p>
+            <Button
+              variant="primary"
+              className="mt-4"
+              disabled={upgradeBusy}
+              onClick={() => handleSelfServeUpgrade("pro")}
+            >
+              {upgradeBusy ? "Working…" : "Upgrade to Pro"}
+            </Button>
+          </Card>
+        )}
+
         {limitReached && (
           <Card className="mb-8 border-amber-500/40 bg-amber-500/10">
             <h2 className="text-lg font-semibold text-amber-200">
-              {isProOrCustom ? "You've used all your conversations this month" : "You've used all your free conversations"}
+              {userPlan === "free"
+                ? "You've used all your free conversations"
+                : isPaidPlan
+                  ? "You've used all your conversations this month"
+                  : "You've used all your free conversations"}
             </h2>
             <p className="mt-2 text-slate-300">
-              {isProOrCustom
-                ? "Renew your plan to keep your chatbot live and get 500 more conversations."
-                : "Upgrade to Pro to get 500 conversations per month. Your dashboard and all conversations stay the same."}
+              {userPlan === "free"
+                ? "Upgrade to Growth for 1,000 conversations per month. Continue with Stripe — your chat history stays put."
+                : userPlan === "growth"
+                  ? "Upgrade to Pro for 3,000 conversations per month, or wait until your limit resets next month."
+                  : isPaidPlan
+                    ? "Renew your subscription to keep your chatbot live and reset your monthly conversations."
+                    : "Upgrade to a paid plan for more conversations each month."}
             </p>
-            <Link href="/dashboard/upgrade">
-              <Button variant="primary" className="mt-4">
-                {isProOrCustom ? "Renew plan" : "Upgrade to Pro"}
+            {userPlan === "free" && (
+              <Button
+                variant="primary"
+                className="mt-4"
+                disabled={upgradeBusy}
+                onClick={() => handleSelfServeUpgrade("growth")}
+              >
+                {upgradeBusy ? "Redirecting…" : "Upgrade to Growth (Stripe)"}
               </Button>
+            )}
+            {userPlan === "growth" && (
+              <Button
+                variant="primary"
+                className="mt-4"
+                disabled={upgradeBusy}
+                onClick={() => handleSelfServeUpgrade("pro")}
+              >
+                {upgradeBusy ? "Working…" : "Upgrade to Pro (Stripe)"}
+              </Button>
+            )}
+            {(userPlan === "pro" || userPlan === "agency" || userPlan === "custom" || userPlan === "business") && (
+              <Link href="/pricing">
+                <Button variant="primary" className="mt-4">
+                  {userPlan === "pro" ? "View plans & billing" : "View plans"}
+                </Button>
+              </Link>
+            )}
+          </Card>
+        )}
+
+        {showAgencyOnboarding && (
+          <Card className="mb-8 border-primary-500/30 bg-primary-500/10">
+            <h2 className="text-lg font-semibold text-primary-400">Create your first chatbot</h2>
+            <p className="mt-2 text-slate-300">
+              You&apos;re on Agency — add a store URL and go live from your dashboard whenever you&apos;re ready. Your install snippet appears here once a chatbot exists.
+            </p>
+            <Link href="/create-bot" className="mt-4 inline-block">
+              <Button variant="primary">Create chatbot</Button>
             </Link>
-          </Card>
-        )}
-
-        {showProEmptyState && (
-          <Card className="mb-8 border-primary-500/30 bg-primary-500/10">
-            <h2 className="text-lg font-semibold text-primary-400">We&apos;re setting up your custom chatbot</h2>
-            <p className="mt-2 text-slate-300">
-              In about 7 days you&apos;ll see your working chatbot and snippet here. Our team will reach out to schedule a call and get you live.
-            </p>
-            <p className="mt-2 text-sm text-slate-500">
-              Check your email for the Calendly link to book a time with our experts.
-            </p>
-          </Card>
-        )}
-
-        {isPro && chatbotId && isNewUser && (
-          <Card className="mb-8 border-primary-500/30 bg-primary-500/10">
-            <h2 className="text-lg font-semibold text-primary-400">Do you want a custom solution?</h2>
-            <p className="mt-2 text-slate-300">
-              Schedule a call with our team to tailor your chatbot and integrate with your database.
-            </p>
-            <a
-              href={CALENDLY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-block"
-            >
-              <Button variant="primary">Schedule a meeting</Button>
-            </a>
           </Card>
         )}
 
@@ -249,7 +438,9 @@ function DashboardContent() {
                   </p>
                   <p className="mt-2 text-2xl font-bold text-slate-100">{totalConversations}</p>
                   <p className="mt-1 text-sm text-slate-400">
-                    {remaining} remaining of {limit} (plan)
+                    {statsUnlimited
+                      ? "Unlimited conversations this month (Agency)"
+                      : `${stats?.remaining ?? 0} remaining of ${limit} (plan)`}
                   </p>
                 </Card>
                 <Card>
@@ -290,8 +481,15 @@ function DashboardContent() {
               <Card>
                 <h2 className="text-sm font-semibold text-slate-200">Conversations</h2>
                 <p className="mt-2 text-slate-400">
-                  Total: <span className="font-semibold text-slate-100">{totalConversations}</span> / {limit}.
-                  <span className="ml-1 text-slate-400">{remaining} left in plan.</span>
+                  Total: <span className="font-semibold text-slate-100">{totalConversations}</span>
+                  {statsUnlimited ? (
+                    <span className="ml-1 text-slate-400">· Unlimited monthly conversations</span>
+                  ) : (
+                    <>
+                      {" "}
+                      / {limit}.<span className="ml-1 text-slate-400">{stats?.remaining ?? 0} left in plan.</span>
+                    </>
+                  )}
                 </p>
                 <Link href="/conversations" className="mt-4 inline-block">
                   <Button variant="ghost" className="text-primary-400 hover:text-primary-300">
@@ -370,6 +568,17 @@ function DashboardContent() {
             </section>
           </>
         )}
+
+        <div className="mt-10 border-t border-slate-800/80 pt-6 text-center">
+          <a
+            href={CUSTOM_PLAN_CALENDLY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex rounded-md border border-slate-700 bg-slate-900/40 px-3 py-1.5 text-xs text-slate-400 transition hover:border-slate-600 hover:text-primary-400"
+          >
+            Need a custom plan? Talk to us
+          </a>
+        </div>
       </div>
     </AppShell>
   );

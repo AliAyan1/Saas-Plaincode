@@ -9,6 +9,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
 
 export type Personality =
   | "Friendly"
@@ -74,7 +75,16 @@ export interface ActivityItem {
   createdAt: number;
 }
 
-export type UserPlan = "free" | "pro" | "custom" | "business";
+export type UserPlan = "free" | "pro" | "custom" | "business" | "growth" | "agency";
+
+export type StoreSummary = {
+  id: string;
+  name: string;
+  label: string;
+  websiteUrl: string;
+};
+
+const VALID_PLANS: UserPlan[] = ["free", "pro", "custom", "business", "growth", "agency"];
 
 interface BotContextValue {
   userPlan: UserPlan;
@@ -82,6 +92,15 @@ interface BotContextValue {
 
   chatbotId: string | null;
   setChatbotId: (id: string | null) => void;
+
+  /** Connected stores (chatbots) for this account */
+  stores: StoreSummary[];
+  setStores: (s: StoreSummary[]) => void;
+  /** Max stores for plan, or null = unlimited */
+  storeLimit: number | null;
+  setStoreLimit: (n: number | null) => void;
+  /** Switch dashboard / widget context to another store */
+  selectStore: (storeId: string) => Promise<void>;
 
   scrapedData: ScrapedData | null;
   setScrapedData: (data: ScrapedData | null) => void;
@@ -111,6 +130,11 @@ interface BotContextValue {
 
   tickets: Ticket[];
   addTicket: (item: Omit<Ticket, "id" | "ticketRef" | "createdAt"> & Partial<Pick<Ticket, "id" | "ticketRef" | "createdAt">>) => string;
+}
+
+function planFromStorage(p: string | undefined): UserPlan {
+  if (p && VALID_PLANS.includes(p as UserPlan)) return p as UserPlan;
+  return "free";
 }
 
 const BotContext = createContext<BotContextValue | undefined>(undefined);
@@ -144,6 +168,8 @@ function nextTicketRef(existing: Ticket[]): string {
 export function BotProvider({ children }: { children: ReactNode }) {
   const [userPlan, setUserPlan] = useState<UserPlan>("free");
   const [chatbotId, setChatbotId] = useState<string | null>(null);
+  const [stores, setStores] = useState<StoreSummary[]>([]);
+  const [storeLimit, setStoreLimit] = useState<number | null>(1);
   const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
   const [personality, setPersonality] = useState<Personality | null>(null);
   const [conversationRemaining, setConversationRemaining] = useState<number>(100);
@@ -157,6 +183,8 @@ export function BotProvider({ children }: { children: ReactNode }) {
     const fromStorage = safeParseJson<{
       userPlan?: UserPlan;
       chatbotId: string | null;
+      stores?: StoreSummary[];
+      storeLimit?: number | null;
       scrapedData: ScrapedData | null;
       personality: Personality | null;
       conversationRemaining: number;
@@ -167,8 +195,10 @@ export function BotProvider({ children }: { children: ReactNode }) {
     }>(window.localStorage.getItem(STORAGE_KEY));
 
     if (fromStorage) {
-      setUserPlan(fromStorage.userPlan === "pro" ? "pro" : fromStorage.userPlan === "custom" ? "custom" : fromStorage.userPlan === "business" ? "business" : "free");
+      setUserPlan(planFromStorage(fromStorage.userPlan));
       setChatbotId(fromStorage.chatbotId ?? null);
+      if (Array.isArray(fromStorage.stores)) setStores(fromStorage.stores);
+      if (fromStorage.storeLimit !== undefined) setStoreLimit(fromStorage.storeLimit);
       setScrapedData(fromStorage.scrapedData ?? null);
       setPersonality(fromStorage.personality ?? null);
       setConversationRemaining(
@@ -186,13 +216,28 @@ export function BotProvider({ children }: { children: ReactNode }) {
   // On load (and after refresh), hydrate from server so nothing is lost
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const saved = safeParseJson<{ chatbotId?: string | null }>(window.localStorage.getItem(STORAGE_KEY));
+    const preferredStoreId =
+      typeof saved?.chatbotId === "string" && saved.chatbotId ? saved.chatbotId : null;
+    const botUrl = preferredStoreId
+      ? `/api/chatbots/me?storeId=${encodeURIComponent(preferredStoreId)}`
+      : "/api/chatbots/me";
+
     Promise.all([
       fetch("/api/me").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/chatbots/me").then((r) => (r.ok ? r.json() : null)),
+      fetch(botUrl).then((r) => (r.ok ? r.json() : null)),
       fetch("/api/conversations/stats").then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([me, bot, stats]) => {
-        if (me?.plan === "pro" || me?.plan === "free" || me?.plan === "custom") setUserPlan(me.plan);
+        if (me?.plan && VALID_PLANS.includes(me.plan as UserPlan)) {
+          setUserPlan(me.plan as UserPlan);
+        }
+        if (bot && Array.isArray(bot.chatbots)) {
+          setStores(bot.chatbots as StoreSummary[]);
+        }
+        if (bot && "storeLimit" in bot) {
+          setStoreLimit((bot as { storeLimit: number | null }).storeLimit ?? 1);
+        }
         if (bot?.chatbot) {
           const c = bot.chatbot;
           setChatbotId(c.id);
@@ -205,7 +250,9 @@ export function BotProvider({ children }: { children: ReactNode }) {
           });
           setPersonality((c.personality as Personality) || "Friendly");
         }
-        if (stats && typeof stats.remaining === "number") {
+        if (stats?.unlimited) {
+          setConversationRemaining(UNLIMITED_CONVERSATIONS_DISPLAY);
+        } else if (stats && typeof stats.remaining === "number") {
           setConversationRemaining(Math.max(0, stats.remaining));
         }
       })
@@ -219,6 +266,8 @@ export function BotProvider({ children }: { children: ReactNode }) {
       JSON.stringify({
         userPlan,
         chatbotId,
+        stores,
+        storeLimit,
         scrapedData,
         personality,
         conversationRemaining,
@@ -228,10 +277,32 @@ export function BotProvider({ children }: { children: ReactNode }) {
         tickets,
       })
     );
-  }, [userPlan, chatbotId, scrapedData, personality, conversationRemaining, messages, forwarded, recentActivity, tickets]);
+  }, [userPlan, chatbotId, stores, storeLimit, scrapedData, personality, conversationRemaining, messages, forwarded, recentActivity, tickets]);
 
   const decrementConversations = useCallback(() => {
     setConversationRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+  }, []);
+
+  const selectStore = useCallback(async (storeId: string) => {
+    try {
+      const r = await fetch(`/api/chatbots/me?storeId=${encodeURIComponent(storeId)}`);
+      const bot = r.ok ? await r.json() : null;
+      if (!bot?.chatbot) return;
+      if (Array.isArray(bot.chatbots)) setStores(bot.chatbots as StoreSummary[]);
+      if ("storeLimit" in bot) setStoreLimit((bot as { storeLimit: number | null }).storeLimit ?? 1);
+      const c = bot.chatbot;
+      setChatbotId(c.id);
+      setScrapedData({
+        url: c.websiteUrl || "",
+        title: c.websiteTitle || "",
+        description: c.websiteDescription || "",
+        content: c.websiteContent || "",
+        products: Array.isArray(c.products) ? c.products : [],
+      });
+      setPersonality((c.personality as Personality) || "Friendly");
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const addMessage = useCallback(
@@ -313,6 +384,11 @@ export function BotProvider({ children }: { children: ReactNode }) {
       setUserPlan,
       chatbotId,
       setChatbotId,
+      stores,
+      setStores,
+      storeLimit,
+      setStoreLimit,
+      selectStore,
       scrapedData,
       setScrapedData,
       personality,
@@ -336,6 +412,9 @@ export function BotProvider({ children }: { children: ReactNode }) {
     [
       userPlan,
       chatbotId,
+      stores,
+      storeLimit,
+      selectStore,
       scrapedData,
       personality,
       conversationRemaining,

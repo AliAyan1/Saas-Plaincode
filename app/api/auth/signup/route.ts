@@ -4,7 +4,8 @@ import { getDbConnection } from "@/lib/db";
 import { createToken, setAuthCookie } from "@/lib/auth";
 import { randomUUID } from "crypto";
 import { checkRateLimit, LIMITS } from "@/lib/rate-limit";
-import { sendFreeWelcomeEmail, sendProWelcomeEmail } from "@/lib/send-welcome-emails";
+import { sendFreeWelcomeEmail } from "@/lib/send-welcome-emails";
+import { conversationLimitForPlan, normalizePlanParam, type BillingPlan } from "@/lib/plans";
 
 export async function POST(req: NextRequest) {
   const rl = checkRateLimit(req, "auth", LIMITS.auth);
@@ -19,8 +20,8 @@ export async function POST(req: NextRequest) {
     const email = (body.email as string)?.trim()?.toLowerCase();
     const password = body.password as string;
     const name = (body.name as string)?.trim() || null;
-    const planParam = (body.plan as string)?.toLowerCase();
-    const plan = planParam === "pro" ? "pro" : planParam === "custom" ? "custom" : "free";
+    const planParam = (body.plan as string) || "free";
+    const plan: BillingPlan = normalizePlanParam(planParam);
 
     if (!email || !password) {
       return NextResponse.json(
@@ -54,10 +55,11 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const userId = randomUUID();
+    const convLimit = conversationLimitForPlan(plan);
 
     await conn.execute(
       "INSERT INTO users (id, email, password_hash, name, plan, conversation_limit) VALUES (?, ?, ?, ?, ?, ?)",
-      [userId, email, passwordHash, name, plan, plan === "free" ? 100 : 500]
+      [userId, email, passwordHash, name, plan, convLimit]
     );
 
     await conn.end();
@@ -73,15 +75,14 @@ export async function POST(req: NextRequest) {
     if (plan === "free") {
       sendFreeWelcomeEmail(email, name).catch((e) => console.error("Free welcome email error:", e));
     }
-    if (plan === "custom") {
-      sendProWelcomeEmail(email, name).catch((e) => console.error("Custom welcome email error:", e));
-    }
+
+    const redirectToPayment = plan === "growth" || plan === "pro" || plan === "agency";
 
     return NextResponse.json({
       ok: true,
       user: { id: userId, email, name, plan },
-      redirectToPayment: plan === "pro",
-      redirectTo: plan === "custom" ? "/dashboard" : undefined,
+      redirectToPayment,
+      paymentPlan: redirectToPayment ? plan : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

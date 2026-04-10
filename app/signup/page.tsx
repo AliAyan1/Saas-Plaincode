@@ -10,8 +10,15 @@ import Logo from "@/components/Logo";
 
 function SignupContent() {
   const searchParams = useSearchParams();
-  const planParam = searchParams.get("plan");
-  const plan = planParam === "pro" ? "pro" : planParam === "custom" ? "custom" : "free";
+  const planParam = (searchParams.get("plan") || "free").toLowerCase();
+  const plan =
+    planParam === "growth"
+      ? "growth"
+      : planParam === "pro"
+        ? "pro"
+        : planParam === "agency" || planParam === "custom"
+          ? "agency"
+          : "free";
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +55,13 @@ function SignupContent() {
         setLoading(false);
         return;
       }
-      const userPlan = data.user?.plan === "pro" ? "pro" : data.user?.plan === "custom" ? "custom" : "free";
+      const p = data.user?.plan as string | undefined;
+      const userPlan =
+        p === "growth" || p === "pro" || p === "agency"
+          ? p
+          : p === "custom"
+            ? "agency"
+            : "free";
       try {
         const raw = window.localStorage.getItem("bot-state-v2");
         const state = raw ? JSON.parse(raw) : {};
@@ -57,7 +70,8 @@ function SignupContent() {
         /* ignore */
       }
       if (data.redirectToPayment) {
-        window.location.href = "/signup/payment";
+        const payPlan = (data.paymentPlan as string) || plan;
+        window.location.href = `/signup/payment?plan=${encodeURIComponent(payPlan)}`;
       } else if (data.redirectTo) {
         window.location.href = data.redirectTo;
       } else {
@@ -72,14 +86,14 @@ function SignupContent() {
   return (
     <div className="min-h-screen flex flex-col bg-black">
       <header className="border-b border-slate-800 bg-black">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2.5 text-slate-100">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
               Plainbot
             </span>
           </Link>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 sm:text-right">
             Already have an account?{" "}
             <Link href="/login" className="font-medium text-primary-400 hover:text-primary-300">
               Log in
@@ -88,21 +102,28 @@ function SignupContent() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md p-8 shadow-soft-lg">
+      <main className="flex flex-1 items-start justify-center px-4 py-8 sm:items-center sm:px-6 sm:py-12 lg:px-8">
+        <Card className="w-full max-w-md p-6 shadow-soft-lg sm:p-8">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-100">Create your account</h1>
             <p className="mt-2 text-slate-400">
-              Get started with your 14-day free trial.
+              {plan === "free"
+                ? "Free forever — no card to start. This isn’t a trial that expires."
+                : "Create your account, then continue to checkout or your dashboard."}
             </p>
-            {plan === "pro" && (
+            {plan === "growth" && (
               <p className="mt-2 text-sm text-primary-400 font-medium">
-                You’re signing up for the Pro plan ($500/month).
+                You’re signing up for Growth ($79/month, card required after signup).
               </p>
             )}
-            {plan === "custom" && (
+            {plan === "pro" && (
               <p className="mt-2 text-sm text-primary-400 font-medium">
-                You're signing up for Custom — we'll send a Calendly link. Payment after the meeting.
+                You’re signing up for Pro ($149/month, card required after signup).
+              </p>
+            )}
+            {plan === "agency" && (
+              <p className="mt-2 text-sm text-primary-400 font-medium">
+                Agency ($299/month) — after signup you&apos;ll complete checkout with Stripe ($299/month), then open your dashboard.
               </p>
             )}
           </div>
@@ -145,10 +166,10 @@ function SignupContent() {
                 {error}
               </p>
             )}
-            <label className="flex items-start gap-3 cursor-pointer">
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg py-2 pr-1 -my-1">
               <input
                 type="checkbox"
-                className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                className="mt-0.5 h-[1.125rem] w-[1.125rem] shrink-0 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
               />
               <span className="text-sm text-slate-400">
                 I manage an e-commerce store and agree to the{" "}
@@ -159,12 +180,20 @@ function SignupContent() {
               </span>
             </label>
             <Button type="submit" variant="primary" fullWidth disabled={loading}>
-              {loading ? "Creating..." : "Create Account"}
+              {loading
+                ? "Creating..."
+                : plan === "free"
+                  ? "Start free, no card needed"
+                  : "Create account"}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-xs text-slate-500">
-            By signing up, you agree to our 14-day trial and{" "}
+            By signing up, you agree to our{" "}
+            <Link href="/terms" className="text-primary-400 hover:underline">
+              Terms
+            </Link>{" "}
+            and{" "}
             <Link href="/privacy" className="text-primary-400 hover:underline">
               Privacy Policy
             </Link>

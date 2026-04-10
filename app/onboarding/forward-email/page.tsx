@@ -68,7 +68,7 @@ export default function ForwardEmailPage() {
   return (
     <div className="min-h-screen flex flex-col bg-black">
       <header className="border-b border-slate-800 bg-black">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
@@ -78,8 +78,8 @@ export default function ForwardEmailPage() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md">
+      <main className="flex flex-1 items-start justify-center px-4 py-8 sm:items-center sm:px-6 sm:py-12 lg:px-8">
+        <div className="w-full max-w-md pb-8">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-100 sm:text-3xl">
               Where should we send forwarded conversations?
@@ -98,7 +98,10 @@ export default function ForwardEmailPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="support@yourstore.com"
-                  className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  autoComplete="email"
+                  enterKeyHint="done"
+                  inputMode="email"
+                  className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-base text-slate-100 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                   required
                 />
               </label>

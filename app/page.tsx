@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
@@ -11,10 +10,8 @@ import AnimatedSection from "@/components/AnimatedSection";
 export default function HomePage() {
   return (
     <>
-      <Navbar />
-
       <main>
-        {/* Hero */}
+        {/* Hero — above the fold: headline, subhead, single CTA only (no global nav) */}
         <HeroSection />
 
         {/* How It Works */}
@@ -109,6 +106,9 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* AI Demo — high-intent proof early (before features & pricing) */}
+        <AiDemoSection />
+
         {/* Features */}
         <section className="border-t border-slate-800 bg-black px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
           <div className="mx-auto max-w-7xl">
@@ -151,7 +151,7 @@ export default function HomePage() {
                 {
                   title: "100 Free Conversations",
                   description:
-                    "Start with 100 free conversations per month. No credit card required.",
+                    "100 free conversations per month on our permanent free plan — no card required.",
                   icon: (
                     <path
                       strokeLinecap="round"
@@ -224,9 +224,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* AI Demo */}
-        <AiDemoSection />
-
         {/* Live chat + dashboard preview */}
         <LandingChatSection />
 
@@ -241,10 +238,10 @@ export default function HomePage() {
                 Transparent pricing
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                Start for free and scale as your shop grows.
+                The free tier doesn&apos;t expire. Scale to Growth or Pro when you&apos;re ready.
               </p>
             </AnimatedSection>
-            <div className="mt-12 grid gap-8 sm:grid-cols-3 max-w-5xl mx-auto">
+            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
               {[
                 {
                   name: "Free",
@@ -253,44 +250,44 @@ export default function HomePage() {
                   period: "/mo",
                   features: [
                     "100 conversations/month",
-                    "1 chatbot",
-                    "Website scraping",
-                    "Upgrade anytime to get more",
+                    "1 store · widget branding",
+                    "Website scraping & basic tickets",
+                    "No card · free forever",
                   ],
-                  cta: "Start Free",
+                  cta: "Start free, no card needed",
                   href: "/signup?plan=free",
                   variant: "outline" as const,
                   recommended: false,
                 },
                 {
-                  name: "Pro",
+                  name: "Growth",
                   sub: "",
-                  price: "$500",
+                  price: "$79",
                   period: "/mo",
                   features: [
-                    "500 conversations/month",
-                    "Same as Free, more conversations",
-                    "Forward full conversations to email",
-                    "Email when limit reached — renew anytime",
+                    "1,000 conversations/month",
+                    "Branding removed · email forwarding",
+                    "3 stores · priority email support",
+                    "Card only · instant access",
                   ],
-                  cta: "Get Started",
-                  href: "/signup?plan=pro",
+                  cta: "Get Growth",
+                  href: "/signup?plan=growth",
                   variant: "primary" as const,
                   recommended: false,
                 },
                 {
-                  name: "Custom",
+                  name: "Pro",
                   sub: "",
-                  price: "Custom",
-                  period: "",
+                  price: "$149",
+                  period: "/mo",
                   features: [
-                    "Custom integration with your systems",
-                    "Schedule a meeting via Calendly",
-                    "Your chatbot live in 7 days",
-                    "Payment after the meeting",
+                    "3,000 conversations/month",
+                    "Up to 5 stores",
+                    "Analytics · Slack notifications",
+                    "Everything in Growth",
                   ],
-                  cta: "Schedule a meeting",
-                  href: "/signup?plan=custom",
+                  cta: "Get Pro",
+                  href: "/signup?plan=pro",
                   variant: "primary" as const,
                   recommended: true,
                 },
@@ -324,7 +321,7 @@ export default function HomePage() {
                       </span>
                     )}
                   </h3>
-                  <ul className="mt-6 min-h-[8.5rem] flex-1 space-y-3">
+                  <ul className="mt-6 flex-1 space-y-3">
                     {plan.features.map((f) => (
                       <li
                         key={f}
@@ -361,6 +358,15 @@ export default function HomePage() {
                 </AnimatedSection>
               ))}
             </div>
+            <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-slate-500">
+              Running an agency or need white-label?{" "}
+              <Link
+                href="/pricing/agency"
+                className="text-primary-400 underline decoration-primary-500/40 underline-offset-4 hover:text-primary-300"
+              >
+                See Agency plan →
+              </Link>
+            </p>
           </div>
         </section>
 
@@ -374,12 +380,12 @@ export default function HomePage() {
               Ready to automate your store?
             </h2>
             <p className="mt-4 text-lg text-slate-400">
-              Start your free trial. Setup takes less than 2 minutes.
+              Set up in minutes. Your free plan is permanent — not a limited trial.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Link href="/pricing">
+              <Link href="/signup?plan=free">
                 <Button variant="primary" className="min-w-[160px] transition-transform hover:scale-105 active:scale-95">
-                  Get Started Free
+                  Start free, no card needed
                 </Button>
               </Link>
             </div>

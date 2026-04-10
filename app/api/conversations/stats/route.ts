@@ -23,7 +23,9 @@ export async function GET() {
       "SELECT conversation_limit AS conversationLimit FROM users WHERE id = ?",
       [auth.userId]
     );
-    const limit = (userRow as { conversationLimit: number }[])[0]?.conversationLimit ?? 100;
+    const rawLimit = (userRow as { conversationLimit: number | null }[])[0]?.conversationLimit;
+    const unlimited = rawLimit === null || rawLimit === undefined;
+    const limit = unlimited ? null : rawLimit;
 
     const [usageRow] = await conn.execute(
       "SELECT count_used AS countUsed FROM conversation_usage WHERE user_id = ? AND period_month = ?",
@@ -33,10 +35,22 @@ export async function GET() {
 
     await conn.end();
 
+    if (unlimited) {
+      return NextResponse.json({
+        totalConversations: countUsed,
+        conversationLimit: null,
+        remaining: null,
+        unlimited: true,
+        period,
+      });
+    }
+
+    const lim = limit ?? 100;
     return NextResponse.json({
       totalConversations: countUsed,
-      conversationLimit: limit,
-      remaining: Math.max(0, limit - countUsed),
+      conversationLimit: lim,
+      remaining: Math.max(0, lim - countUsed),
+      unlimited: false,
       period,
     });
   } catch (err) {

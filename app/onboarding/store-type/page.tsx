@@ -95,7 +95,7 @@ export default function StoreTypePage() {
   return (
     <div className="min-h-screen flex flex-col bg-black">
       <header className="border-b border-slate-800 bg-black">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
           <Link href="/" className="flex items-center gap-2.5 text-slate-100">
             <Logo size="md" />
             <span className="text-base font-semibold sm:text-lg">
@@ -105,8 +105,8 @@ export default function StoreTypePage() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-2xl">
+      <main className="flex flex-1 items-start justify-center px-4 py-8 sm:items-center sm:px-6 sm:py-12 lg:px-8">
+        <div className="w-full max-w-2xl pb-8">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-100 sm:text-3xl">
               What is your e-commerce store?
@@ -122,20 +122,20 @@ export default function StoreTypePage() {
                 key={opt.id}
                 type="button"
                 onClick={() => setSelected(opt.id)}
-                className={`w-full rounded-xl border p-6 text-left transition-all ${
+                className={`w-full rounded-xl border p-4 text-left transition-all active:opacity-90 sm:p-6 ${
                   selected === opt.id
                     ? "border-primary-500 bg-primary-500/10"
                     : "border-slate-700 bg-slate-800/50 hover:border-slate-600"
                 }`}
               >
-                <div className="flex items-start gap-4">
-                  <span className="text-primary-400">{opt.icon}</span>
-                  <div>
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <span className="shrink-0 text-primary-400">{opt.icon}</span>
+                  <div className="min-w-0 flex-1">
                     <p className="font-semibold text-slate-100">{opt.label}</p>
                     <p className="mt-1 text-sm text-slate-400">{opt.description}</p>
                   </div>
                   {selected === opt.id && (
-                    <span className="ml-auto flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-white">
+                    <span className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white">
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>

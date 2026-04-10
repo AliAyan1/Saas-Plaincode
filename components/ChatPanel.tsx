@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
+import { planHasPaidConversationTier, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
 
 interface ChatPanelProps {
   compact?: boolean;
@@ -152,7 +153,8 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
     setError(null);
     const question = input.trim();
     if (!question) return;
-    if (conversationRemaining <= 0) {
+    const unlimited = conversationRemaining >= UNLIMITED_CONVERSATIONS_DISPLAY;
+    if (!unlimited && conversationRemaining <= 0) {
       setError("You've used all your conversations this month. Upgrade or renew from the dashboard to continue.");
       return;
     }
@@ -187,13 +189,13 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
             const body = await res.json();
             if (body?.limitReached) {
               setError(
-                body.plan === "pro"
-                  ? "You've used all your Pro conversations this month. Renew your plan to continue."
-                  : "You've used all your free conversations. Upgrade to Pro to continue."
+                body.plan === "paid"
+                  ? "You've used all your plan conversations this month. Renew or upgrade from the dashboard to continue."
+                  : "You've used all your free conversations. Upgrade from the dashboard to continue."
               );
               updateMessage(assistantId, {
                 content:
-                  "You've reached your conversation limit for this month. Upgrade to Pro (or renew) from your dashboard to keep chatting.",
+                  "You've reached your conversation limit for this month. Upgrade or renew from your dashboard to keep chatting.",
               });
               setLoading(false);
               return;
@@ -252,7 +254,9 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
         });
       }
 
-      decrementConversations();
+      if (conversationRemaining < UNLIMITED_CONVERSATIONS_DISPLAY) {
+        decrementConversations();
+      }
       addActivity({
         type: "resolved",
         title: "Chat query answered",
@@ -269,7 +273,25 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
     }
   };
 
-  const disabled = loading || conversationRemaining <= 0;
+  const unlimitedRemaining = conversationRemaining >= UNLIMITED_CONVERSATIONS_DISPLAY;
+  const disabled = loading || (!unlimitedRemaining && conversationRemaining <= 0);
+
+  const paidHidesPlainbotBranding = planHasPaidConversationTier(userPlan);
+  const storeHeaderLabel = (() => {
+    const title = (scrapedData?.title || "").trim();
+    if (title) return title;
+    const raw = (scrapedData?.url || "").trim();
+    if (raw) {
+      try {
+        const u = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+        const host = u.hostname.replace(/^www\./i, "");
+        if (host) return host;
+      } catch {
+        /* ignore */
+      }
+    }
+    return "Chat";
+  })();
 
   return (
     <div
@@ -280,11 +302,18 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
         {embed ? (
           <>
-            <p className="text-sm font-semibold text-slate-100">Chat</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-100">
+                {paidHidesPlainbotBranding ? storeHeaderLabel : "Plainbot"}
+              </p>
+              {!paidHidesPlainbotBranding && (
+                <p className="text-[11px] text-slate-500">Powered by Plainbot</p>
+              )}
+            </div>
             <button
               type="button"
               onClick={clearMessages}
-              className="text-xs text-slate-400 hover:text-slate-100"
+              className="shrink-0 text-xs text-slate-400 hover:text-slate-100"
             >
               Clear
             </button>
@@ -296,7 +325,9 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
                 Test your ecommerce assistant
               </p>
               <p className="text-xs text-slate-400">
-                {conversationRemaining} conversations remaining in your plan
+                {unlimitedRemaining
+                  ? "Unlimited conversations on your plan"
+                  : `${conversationRemaining} conversations remaining in your plan`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -474,8 +505,8 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
             rows={compact ? 2 : 3}
             className="min-h-[44px] flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder={
-              conversationRemaining <= 0
-                ? "You have used all free conversations."
+              !unlimitedRemaining && conversationRemaining <= 0
+                ? "You have used all conversations for this period."
                 : "Ask a question about your store..."
             }
             value={input}
@@ -488,7 +519,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
             disabled={disabled || !input.trim()}
             className="shrink-0"
           >
-            {conversationRemaining <= 0 ? "Upgrade" : loading ? "Sending..." : "Send"}
+            {!unlimitedRemaining && conversationRemaining <= 0 ? "Upgrade" : loading ? "Sending..." : "Send"}
           </Button>
         </div>
         {error && (

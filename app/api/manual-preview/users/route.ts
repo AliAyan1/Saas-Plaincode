@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbConnection } from "@/lib/db";
+import { conversationLimitForPlan, normalizePlanParam } from "@/lib/plans";
 
 const DEV_ONLY = process.env.NODE_ENV !== "production";
 
@@ -60,12 +61,22 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const userId = typeof body.userId === "string" ? body.userId.trim() : "";
-    const plan = typeof body.plan === "string" && (body.plan === "free" || body.plan === "pro" || body.plan === "custom") ? body.plan : null;
+    const raw = typeof body.plan === "string" ? body.plan.toLowerCase().trim() : "";
+    const allowed = new Set(["free", "growth", "pro", "agency", "custom", "business"]);
+    const plan = allowed.has(raw) ? normalizePlanParam(raw) : null;
     if (!userId || !plan) {
-      return NextResponse.json({ error: "userId and plan (free|pro|custom) required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "userId and plan (free|growth|pro|agency) required" },
+        { status: 400 }
+      );
     }
     const conn = await getDbConnection();
-    await conn.execute("UPDATE users SET plan = ? WHERE id = ?", [plan, userId]);
+    const convLimit = conversationLimitForPlan(plan);
+    await conn.execute("UPDATE users SET plan = ?, conversation_limit = ? WHERE id = ?", [
+      plan,
+      convLimit,
+      userId,
+    ]);
     await conn.end();
     return NextResponse.json({ ok: true, plan });
   } catch (err) {

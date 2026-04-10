@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthFromCookie } from "@/lib/auth";
 import { getDbConnection } from "@/lib/db";
+import { canAddStore, storeLimitForPlan } from "@/lib/plans";
 import { randomUUID } from "crypto";
 
 type Personality = "Friendly" | "Professional" | "Sales-focused" | "Premium Luxury";
@@ -29,6 +30,25 @@ export async function POST(req: NextRequest) {
     }
 
     const conn = await getDbConnection();
+
+    const [countRows] = await conn.execute(
+      "SELECT COUNT(*) AS c FROM chatbots WHERE user_id = ?",
+      [auth.userId]
+    );
+    const existingCount = Number((countRows as { c: number }[])[0]?.c ?? 0);
+    const [planRows] = await conn.execute("SELECT plan FROM users WHERE id = ?", [auth.userId]);
+    const userPlan = (planRows as { plan: string }[])[0]?.plan ?? "free";
+    if (!canAddStore(userPlan, existingCount)) {
+      await conn.end();
+      const cap = storeLimitForPlan(userPlan);
+      return NextResponse.json(
+        {
+          error: `Your plan allows ${cap} store(s). Upgrade to connect more stores.`,
+        },
+        { status: 403 }
+      );
+    }
+
     const chatbotId = randomUUID();
     const productsJson = JSON.stringify(products);
     await conn.execute(

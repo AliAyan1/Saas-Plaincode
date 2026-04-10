@@ -49,12 +49,13 @@ const LANGUAGES: { code: string; label: string }[] = [
 
 export default function BotPersonalityPage() {
   const router = useRouter();
-  const { scrapedData, personality, setPersonality } = useBot();
+  const { scrapedData, personality, setPersonality, chatbotId } = useBot();
   const [guardRails, setGuardRails] = useState("");
   const [language, setLanguage] = useState("en");
 
   useEffect(() => {
-    fetch("/api/chatbots/me")
+    const q = chatbotId ? `?storeId=${encodeURIComponent(chatbotId)}` : "";
+    fetch(`/api/chatbots/me${q}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.chatbot?.personality) setPersonality(data.chatbot.personality);
@@ -62,7 +63,7 @@ export default function BotPersonalityPage() {
         if (data.chatbot?.language) setLanguage(data.chatbot.language);
       })
       .catch(() => {});
-  }, [setPersonality]);
+  }, [setPersonality, chatbotId]);
 
   const handleSelect = async (p: Personality) => {
     setPersonality(p);
@@ -70,7 +71,7 @@ export default function BotPersonalityPage() {
       await fetch("/api/chatbots/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personality: p }),
+        body: JSON.stringify({ personality: p, ...(chatbotId ? { chatbotId } : {}) }),
       });
     } catch {
       // still update UI
@@ -82,7 +83,7 @@ export default function BotPersonalityPage() {
     fetch("/api/chatbots/me", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ language: code }),
+      body: JSON.stringify({ language: code, ...(chatbotId ? { chatbotId } : {}) }),
     }).catch(() => {});
   };
 
@@ -91,7 +92,12 @@ export default function BotPersonalityPage() {
       await fetch("/api/chatbots/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personality: personality || undefined, guardRails, language }),
+        body: JSON.stringify({
+          personality: personality || undefined,
+          guardRails,
+          language,
+          ...(chatbotId ? { chatbotId } : {}),
+        }),
       });
     } catch {
       // continue anyway

@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
       `SELECT u.id, u.email, u.name, u.plan, u.last_upgrade_reminder_at AS lastReminder
        FROM users u
        INNER JOIN conversation_usage cu ON cu.user_id = u.id AND cu.period_month = ?
-       WHERE u.conversation_limit <= cu.count_used
+       WHERE u.conversation_limit IS NOT NULL
+         AND u.conversation_limit <= cu.count_used
          AND u.limit_reached_period = ?
          AND (u.last_upgrade_reminder_at IS NULL OR u.last_upgrade_reminder_at < ?)`,
       [period, period, twentyFourHoursAgo]
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
     for (const u of users) {
       const ok = await sendUpgradeReminderEmail(
         u.email,
-        u.plan === "pro" ? "pro" : "free",
+        u.plan === "free" ? "free" : "pro",
         u.name ?? null
       );
       if (ok.ok) {

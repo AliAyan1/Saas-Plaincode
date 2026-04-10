@@ -3,19 +3,25 @@ import { getDbConnection } from "@/lib/db";
 import { getAuthFromCookie } from "@/lib/auth";
 import { randomUUID } from "crypto";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthFromCookie();
     if (!auth?.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const chatbotId = req.nextUrl.searchParams.get("chatbotId")?.trim() || null;
+
     const conn = await getDbConnection();
+    const joinSql = chatbotId
+      ? " INNER JOIN conversations conv ON conv.id = forwarded_conversations.conversation_id AND conv.chatbot_id = ?"
+      : "";
+    const params: string[] = chatbotId ? [chatbotId, auth.userId] : [auth.userId];
     const [rows] = await conn.execute(
-      `SELECT id, conversation_id AS conversationId, customer, preview, forwarded_as AS forwardedAs, ticket_ref AS ticketRef,
-       reply_text AS replyText, replied_at AS repliedAt, created_at AS createdAt
-       FROM forwarded_conversations WHERE user_id = ? ORDER BY created_at DESC`,
-      [auth.userId]
+      `SELECT forwarded_conversations.id, forwarded_conversations.conversation_id AS conversationId, forwarded_conversations.customer, forwarded_conversations.preview, forwarded_conversations.forwarded_as AS forwardedAs, forwarded_conversations.ticket_ref AS ticketRef,
+       forwarded_conversations.reply_text AS replyText, forwarded_conversations.replied_at AS repliedAt, forwarded_conversations.created_at AS createdAt
+       FROM forwarded_conversations${joinSql} WHERE forwarded_conversations.user_id = ? ORDER BY forwarded_conversations.created_at DESC`,
+      params
     );
     await conn.end();
 

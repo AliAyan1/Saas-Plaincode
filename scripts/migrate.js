@@ -111,6 +111,55 @@ async function run() {
       console.log("users.plan already has 'custom', skip.");
     }
 
+    // 007: plans growth/agency; migrate custom → agency; conversation_limit nullable
+    const [planColRows2] = await conn.execute(
+      "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'plan'",
+      [database]
+    );
+    const planRow2 = Array.isArray(planColRows2) && planColRows2[0] ? planColRows2[0] : null;
+    const planType2 = planRow2 ? String(planRow2.COLUMN_TYPE || planRow2.column_type || "").toLowerCase() : "";
+    if (planType2 && planType2.indexOf("growth") === -1) {
+      console.log("Extending users.plan enum (growth, agency)...");
+      await conn.execute(
+        "ALTER TABLE users MODIFY COLUMN plan ENUM('free','pro','custom','growth','agency') DEFAULT 'free'"
+      );
+      console.log("  OK");
+    }
+    try {
+      const [cr] = await conn.execute("SELECT COUNT(*) AS c FROM users WHERE plan = 'custom'");
+      const n = (cr && cr[0] && cr[0].c) || 0;
+      if (n > 0) {
+        console.log("Migrating plan custom → agency...");
+        await conn.execute("UPDATE users SET plan = 'agency' WHERE plan = 'custom'");
+        console.log("  OK");
+      }
+    } catch (e) {
+      console.log("  skip custom→agency:", e.message);
+    }
+    const [planColRows3] = await conn.execute(
+      "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'plan'",
+      [database]
+    );
+    const planRow3 = Array.isArray(planColRows3) && planColRows3[0] ? planColRows3[0] : null;
+    const planType3 = planRow3 ? String(planRow3.COLUMN_TYPE || planRow3.column_type || "").toLowerCase() : "";
+    if (planType3 && planType3.indexOf("custom") !== -1) {
+      console.log("Removing 'custom' from users.plan enum...");
+      await conn.execute(
+        "ALTER TABLE users MODIFY COLUMN plan ENUM('free','growth','pro','agency') DEFAULT 'free'"
+      );
+      console.log("  OK");
+    }
+    const [convNullRows] = await conn.execute(
+      "SELECT IS_NULLABLE AS n FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'conversation_limit'",
+      [database]
+    );
+    const isNull = convNullRows && convNullRows[0] && String(convNullRows[0].n || convNullRows[0].IS_NULLABLE) === "YES";
+    if (!isNull) {
+      console.log("Making users.conversation_limit nullable (Agency = unlimited)...");
+      await conn.execute("ALTER TABLE users MODIFY COLUMN conversation_limit INT NULL DEFAULT 100");
+      console.log("  OK");
+    }
+
     // 002: forwarded_conversations table
     const [tables] = await conn.execute(
       "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'forwarded_conversations'",

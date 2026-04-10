@@ -41,14 +41,14 @@ export default function UpgradePage() {
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-bold text-slate-100">Upgrade to Pro</h1>
         <p className="mt-1 text-slate-400">
-          Get 500 conversations per month. Your dashboard and all conversations stay the same.
+          Pro includes 3,000 conversations per month (see plainbot.io/pricing for Growth and Agency). Your dashboard and conversations stay the same.
         </p>
 
         {done ? (
           <Card className="mt-8 border-emerald-500/30 bg-emerald-500/10">
             <h2 className="text-lg font-semibold text-emerald-400">You&apos;re on Pro</h2>
             <p className="mt-2 text-slate-300">
-              Your plan is now Pro with 500 conversations per month. You can keep using your chatbot as before.
+              Your plan is now Pro with 3,000 conversations per month. You can keep using your chatbot as before.
             </p>
             <Link href="/dashboard" className="mt-4 inline-block">
               <Button variant="primary">Back to dashboard</Button>

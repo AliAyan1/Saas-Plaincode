@@ -5,6 +5,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
+import { useBot } from "@/components/BotContext";
 
 type TicketRow = {
   id: string;
@@ -47,18 +48,21 @@ function formatTimeAgo(ms: number): string {
 }
 
 export default function TicketsPage() {
+  const { chatbotId } = useBot();
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/tickets")
+    setLoading(true);
+    const q = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
+    fetch(`/api/tickets${q}`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.tickets)) setTickets(data.tickets);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [chatbotId]);
 
   return (
     <AppShell>

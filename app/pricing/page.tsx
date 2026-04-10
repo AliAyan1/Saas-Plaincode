@@ -12,64 +12,65 @@ const CheckIcon = () => (
   </svg>
 );
 
-export default function PricingPage() {
-  const plans = [
-    {
-      id: "free",
-      name: "Free",
-      price: "$0",
-      period: "/month",
-      tagline: "Perfect for trying us out",
-      features: [
-        "100 conversations per month",
-        "1 chatbot",
-        "Website scraping",
-        "Email when limit reached, upgrade anytime",
-        "Same dashboard — upgrade to get more conversations",
-      ],
-      cta: "Start Free",
-      href: "/signup?plan=free",
-      variant: "outline" as const,
-      recommended: false,
-    },
-    {
-      id: "pro",
-      name: "Pro",
-      price: "$500",
-      period: "/month",
-      tagline: "Same as Free, more conversations",
-      features: [
-        "500 conversations per month",
-        "Everything in Free (1 chatbot, website scraping)",
-        "Forward full conversations to email",
-        "Email when limit reached — renew same or other plan",
-        "Same dashboard, just 500 conversations",
-      ],
-      cta: "Get Started",
-      href: "/signup?plan=pro",
-      variant: "primary" as const,
-      recommended: false,
-    },
-    {
-      id: "custom",
-      name: "Custom",
-      price: "Custom",
-      period: "",
-      tagline: "Full custom integration",
-      features: [
-        "Custom integration with your systems",
-        "Schedule a meeting via Calendly",
-        "Your chatbot will be live in 7 days",
-        "Payment after the meeting — no upfront integration",
-        "Dashboard opens with setup status",
-      ],
-      cta: "Schedule a meeting",
-      href: "/signup?plan=custom",
-      variant: "primary" as const,
-      recommended: true,
-    },
-  ];
+const PLANS = [
+  {
+    id: "free",
+    name: "Free",
+    price: "$0",
+    period: "/month",
+    tagline: "Free forever — no card. Not a trial.",
+    features: [
+      "100 conversations/month",
+      "Plainbot branding on widget",
+      "1 store",
+      "Website scraping",
+      "Basic ticket creation",
+      "No card required",
+    ],
+    cta: "Start free, no card needed",
+    href: "/signup?plan=free",
+    variant: "outline" as const,
+    recommended: false,
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    price: "$79",
+    period: "/month",
+    tagline: "Self-serve — card only, instant access",
+    features: [
+      "1,000 conversations/month",
+      "Plainbot branding removed",
+      "Email forwarding (tickets to your inbox)",
+      "3 stores",
+      "Priority email support",
+    ],
+    cta: "Get Growth",
+    href: "/signup?plan=growth",
+    variant: "primary" as const,
+    recommended: false,
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$149",
+    period: "/month",
+    tagline: "Fully self-serve",
+    features: [
+      "3,000 conversations/month",
+      "Up to 5 stores",
+      "Advanced analytics dashboard",
+      "Slack notifications",
+      "Everything in Growth",
+    ],
+    cta: "Get Pro",
+    href: "/signup?plan=pro",
+    variant: "primary" as const,
+    recommended: true,
+  },
+];
 
+export default function PricingPage() {
   return (
     <>
       <Navbar />
@@ -80,13 +81,13 @@ export default function PricingPage() {
               <h1 className="text-3xl font-bold tracking-tight text-slate-100 sm:text-4xl lg:text-5xl">
                 Simple, transparent pricing
               </h1>
-              <p className="mt-4 max-w-2xl mx-auto text-lg text-slate-400">
-                Choose the plan that fits your business. Start free, upgrade when you need more.
+              <p className="mt-4 max-w-xl mx-auto text-lg text-slate-400">
+                Three plans. Pick what fits your store — upgrade or downgrade anytime.
               </p>
             </div>
 
-            <div className="mt-12 grid gap-8 sm:grid-cols-3 lg:gap-10">
-              {plans.map((plan) => (
+            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+              {PLANS.map((plan) => (
                 <Card
                   key={plan.id}
                   className={`relative flex flex-col overflow-hidden ${
@@ -101,7 +102,7 @@ export default function PricingPage() {
                   {plan.recommended && (
                     <div className="absolute top-4 right-4">
                       <span className="rounded-full bg-primary-500 px-3 py-1 text-xs font-semibold text-white">
-                        Most popular
+                        Popular
                       </span>
                     </div>
                   )}
@@ -109,20 +110,13 @@ export default function PricingPage() {
                     <h2 className="text-xl font-bold text-slate-100">{plan.name}</h2>
                     <p className="mt-1 text-sm text-slate-500">{plan.tagline}</p>
                     <div className="mt-6 flex items-baseline gap-1">
-                      <span className="text-4xl font-bold tracking-tight text-slate-100">
-                        {plan.price}
-                      </span>
-                      {plan.period && (
-                        <span className="text-slate-500">{plan.period}</span>
-                      )}
+                      <span className="text-4xl font-bold tracking-tight text-slate-100">{plan.price}</span>
+                      {plan.period && <span className="text-slate-500">{plan.period}</span>}
                     </div>
                   </div>
                   <ul className="flex-1 space-y-3 py-6 border-t border-slate-700">
                     {plan.features.map((f) => (
-                      <li
-                        key={f}
-                        className="flex items-start gap-3 text-slate-300"
-                      >
+                      <li key={f} className="flex items-start gap-3 text-slate-300">
                         <CheckIcon />
                         <span>{f}</span>
                       </li>
@@ -142,6 +136,19 @@ export default function PricingPage() {
                 </Card>
               ))}
             </div>
+
+            <p
+              id="agency-plan"
+              className="mx-auto mt-12 max-w-2xl text-center text-sm text-slate-500"
+            >
+              Running an agency or need white-label?{" "}
+              <Link
+                href="/pricing/agency"
+                className="text-primary-400 underline decoration-primary-500/40 underline-offset-4 hover:text-primary-300"
+              >
+                See Agency plan →
+              </Link>
+            </p>
           </div>
         </section>
       </main>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
+import { useBot } from "@/components/BotContext";
 
 type ForwardedItem = {
   id: string;
@@ -18,6 +19,7 @@ type ForwardedItem = {
 };
 
 export default function ForwardedConversationsPage() {
+  const { chatbotId } = useBot();
   const [list, setList] = useState<ForwardedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyingId, setReplyingId] = useState<string | null>(null);
@@ -25,7 +27,9 @@ export default function ForwardedConversationsPage() {
   const [saving, setSaving] = useState(false);
 
   const fetchList = () => {
-    fetch("/api/forwarded")
+    setLoading(true);
+    const q = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
+    fetch(`/api/forwarded${q}`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.forwarded)) setList(data.forwarded);
@@ -36,7 +40,7 @@ export default function ForwardedConversationsPage() {
 
   useEffect(() => {
     fetchList();
-  }, []);
+  }, [chatbotId]);
 
   const handleSaveReply = async (id: string) => {
     if (!replyDraft.trim()) return;
