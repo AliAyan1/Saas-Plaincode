@@ -7,6 +7,18 @@ type Chatbot = { id: string; name: string; websiteUrl: string };
 type Endpoint = { id: string; name: string; baseUrl: string; authType: string };
 type BillingPlanUi = "free" | "growth" | "pro" | "agency";
 
+type ConversationSummary = {
+  id: string;
+  chatbotId: string;
+  chatbotName: string | null;
+  status: string;
+  customerEmail: string | null;
+  customerName: string | null;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type UserRow = {
   id: string;
   email: string;
@@ -16,6 +28,19 @@ type UserRow = {
   createdAt: string;
   chatbots?: Chatbot[];
   endpoints?: Endpoint[];
+  usageThisMonth?: number;
+  conversationsRemaining?: number | null;
+  conversationStats?: {
+    open: number;
+    resolved: number;
+    forwarded: number;
+    total: number;
+  };
+  recentConversations?: ConversationSummary[];
+  isPayingCustomer?: boolean;
+  hasStripeSubscription?: boolean;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
 };
 
 function displayPlan(u: UserRow): BillingPlanUi {
@@ -35,11 +60,107 @@ const PLAN_LABEL: Record<BillingPlanUi, string> = {
   agency: "Agency",
 };
 
+function truncateId(s: string | null | undefined, visible = 14): string {
+  if (!s) return "—";
+  const t = s.trim();
+  if (t.length <= visible) return t;
+  return `${t.slice(0, visible)}…`;
+}
+
+function ConversationPanel({
+  u,
+  expanded,
+  onToggle,
+  usagePeriodMonth,
+}: {
+  u: UserRow;
+  expanded: boolean;
+  onToggle: () => void;
+  usagePeriodMonth: string | null;
+}) {
+  const used = u.usageThisMonth ?? 0;
+  const limit = u.conversationLimit;
+  const rem = u.conversationsRemaining;
+  const st = u.conversationStats ?? { open: 0, resolved: 0, forwarded: 0, total: 0 };
+  const recent = u.recentConversations ?? [];
+  const limitLabel = limit == null ? "Unlimited" : `${limit}/mo`;
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-700/80 bg-slate-950/40">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-800/50"
+      >
+        <span>
+          <span className="font-medium text-slate-200">Usage &amp; conversations</span>
+          {usagePeriodMonth && (
+            <span className="ml-2 text-xs text-slate-500">({usagePeriodMonth})</span>
+          )}
+        </span>
+        <span className="shrink-0 text-xs text-slate-500">
+          {used} used · {limitLabel}
+          {rem != null && ` · ${rem} left`}
+          {" · "}
+          {st.open} open / {st.total} total threads
+        </span>
+      </button>
+      {expanded && (
+        <div className="border-t border-slate-700/80 px-3 py-3">
+          <p className="text-xs text-slate-500">
+            By status:{" "}
+            <span className="text-slate-400">
+              open {st.open}, resolved {st.resolved}, forwarded {st.forwarded}
+            </span>
+          </p>
+          {recent.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">No conversations yet.</p>
+          ) : (
+            <ul className="mt-2 max-h-64 space-y-2 overflow-y-auto text-xs">
+              {recent.map((c) => (
+                <li
+                  key={c.id}
+                  className="rounded border border-slate-700/60 bg-slate-900/60 px-2 py-2 text-slate-400"
+                >
+                  <span className="font-mono text-slate-500">{truncateId(c.id, 8)}</span>
+                  <span
+                    className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                      c.status === "open"
+                        ? "bg-amber-500/20 text-amber-300"
+                        : c.status === "forwarded"
+                          ? "bg-sky-500/20 text-sky-300"
+                          : "bg-slate-600/40 text-slate-300"
+                    }`}
+                  >
+                    {c.status}
+                  </span>
+                  <div className="mt-1 text-slate-300">
+                    {c.chatbotName || "Bot"} · {c.messageCount} msgs
+                  </div>
+                  <div className="mt-0.5 text-slate-500">
+                    {[c.customerName, c.customerEmail].filter(Boolean).join(" · ") || "Anonymous visitor"}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-slate-600">
+                    Updated {new Date(c.updatedAt).toLocaleString()}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ManualPreviewPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [usagePeriodMonth, setUsagePeriodMonth] = useState<string | null>(null);
+  const [hasStripeColumns, setHasStripeColumns] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [convDetailUserId, setConvDetailUserId] = useState<string | null>(null);
   const [addingEndpointFor, setAddingEndpointFor] = useState<string | null>(null);
   const [makingChatbotFor, setMakingChatbotFor] = useState<string | null>(null);
   const [endpointForm, setEndpointForm] = useState({ name: "", baseUrl: "", authType: "none", authValue: "" });
@@ -58,6 +179,8 @@ export default function ManualPreviewPage() {
       }
       const data = await res.json();
       setUsers(Array.isArray(data.users) ? data.users : []);
+      setUsagePeriodMonth(typeof data.usagePeriodMonth === "string" ? data.usagePeriodMonth : null);
+      setHasStripeColumns(typeof data.hasStripeColumns === "boolean" ? data.hasStripeColumns : null);
     } catch {
       setError("Failed to load users.");
       setUsers([]);
@@ -140,6 +263,11 @@ export default function ManualPreviewPage() {
     {} as Record<BillingPlanUi, UserRow[]>
   );
 
+  const payingUsers = users
+    .filter((u) => u.isPayingCustomer)
+    .slice()
+    .sort((a, b) => a.email.localeCompare(b.email));
+
   const impersonateUrl = (userId: string) => `/api/manual-preview/impersonate?userId=${encodeURIComponent(userId)}`;
 
   const formatConvLimit = (u: UserRow) => {
@@ -178,6 +306,91 @@ export default function ManualPreviewPage() {
           <p className="mt-6 rounded-lg border border-amber-800/50 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
             {error}
           </p>
+        )}
+
+        {!loading && !error && (
+          <section className="mt-8 rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-6">
+            <h2 className="text-lg font-semibold text-emerald-200">Paying customers &amp; usage</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Everyone on a paid plan or with an active Stripe subscription. Monthly usage comes from{" "}
+              <code className="text-slate-500">conversation_usage</code>
+              {usagePeriodMonth ? (
+                <>
+                  {" "}
+                  for <span className="text-slate-200">{usagePeriodMonth}</span>.
+                </>
+              ) : (
+                "."
+              )}{" "}
+              “Left” is plan limit minus used (Agency = unlimited quota in UI).
+            </p>
+            {hasStripeColumns === false && (
+              <p className="mt-2 text-xs text-amber-200/90">
+                Your <code className="text-amber-100/80">users</code> table has no Stripe columns yet — subscription IDs
+                won&apos;t show until you add <code className="text-amber-100/80">stripe_customer_id</code> and{" "}
+                <code className="text-amber-100/80">stripe_subscription_id</code> (see webhook handler).
+              </p>
+            )}
+            {payingUsers.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">No paid-plan users in the database yet.</p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="py-2 pr-3 font-medium">Email</th>
+                      <th className="py-2 pr-3 font-medium">Plan</th>
+                      <th className="py-2 pr-3 font-medium">Stripe sub</th>
+                      <th className="py-2 pr-3 font-medium">Used</th>
+                      <th className="py-2 pr-3 font-medium">Limit</th>
+                      <th className="py-2 pr-3 font-medium">Left</th>
+                      <th className="py-2 pr-3 font-medium">Open / total</th>
+                      <th className="py-2 font-medium"> </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payingUsers.map((u) => {
+                      const st = u.conversationStats ?? { open: 0, total: 0 };
+                      const used = u.usageThisMonth ?? 0;
+                      const lim = u.conversationLimit;
+                      const rem = u.conversationsRemaining;
+                      return (
+                        <tr key={u.id} className="border-b border-slate-800/80 text-slate-300">
+                          <td className="py-2 pr-3">
+                            <span className="text-slate-200">{u.email}</span>
+                            {u.name && <div className="text-xs text-slate-500">{u.name}</div>}
+                          </td>
+                          <td className="py-2 pr-3">
+                            <code className="text-slate-400">{u.plan}</code>
+                            {u.hasStripeSubscription && (
+                              <span className="ml-1 text-[10px] text-emerald-400">Stripe</span>
+                            )}
+                          </td>
+                          <td className="max-w-[140px] py-2 pr-3 font-mono text-xs text-slate-500">
+                            {truncateId(u.stripeSubscriptionId, 18)}
+                          </td>
+                          <td className="py-2 pr-3">{used}</td>
+                          <td className="py-2 pr-3">{lim == null ? "∞" : lim}</td>
+                          <td className="py-2 pr-3">{rem == null ? "∞" : rem}</td>
+                          <td className="py-2 pr-3">
+                            {st.open} / {st.total}
+                          </td>
+                          <td className="py-2">
+                            <a
+                              href={impersonateUrl(u.id)}
+                              className="text-primary-400 hover:text-primary-300"
+                            >
+                              Dashboard
+                            </a>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
 
         {loading ? (
@@ -271,6 +484,15 @@ export default function ManualPreviewPage() {
                                 </div>
                               </div>
                             </div>
+
+                            <ConversationPanel
+                              u={u}
+                              expanded={convDetailUserId === u.id}
+                              onToggle={() =>
+                                setConvDetailUserId((prev) => (prev === u.id ? null : u.id))
+                              }
+                              usagePeriodMonth={usagePeriodMonth}
+                            />
 
                             {u.chatbots && u.chatbots.length > 0 && (
                               <div className="mt-3">
@@ -424,45 +646,55 @@ export default function ManualPreviewPage() {
                         return (
                           <li
                             key={u.id}
-                            className="flex flex-col gap-3 rounded-lg border border-slate-700/80 bg-slate-800/30 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+                            className="flex flex-col gap-3 rounded-lg border border-slate-700/80 bg-slate-800/30 px-4 py-3"
                           >
-                            <div className="min-w-0 flex-1">
-                              <div>
-                                <span className="text-slate-200">{u.email}</span>
-                                {u.name && <span className="ml-2 text-sm text-slate-500">{u.name}</span>}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div>
+                                  <span className="text-slate-200">{u.email}</span>
+                                  {u.name && <span className="ml-2 text-sm text-slate-500">{u.name}</span>}
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  DB: <code className="text-slate-400">{u.plan}</code>
+                                  {" · "}
+                                  {formatConvLimit(u)} conv/mo
+                                  {u.chatbots && u.chatbots.length > 0 && (
+                                    <span className="text-slate-600"> · {u.chatbots.length} chatbot(s)</span>
+                                  )}
+                                </p>
                               </div>
-                              <p className="mt-1 text-xs text-slate-500">
-                                DB: <code className="text-slate-400">{u.plan}</code>
-                                {" · "}
-                                {formatConvLimit(u)} conv/mo
-                                {u.chatbots && u.chatbots.length > 0 && (
-                                  <span className="text-slate-600"> · {u.chatbots.length} chatbot(s)</span>
-                                )}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <a
-                                href={impersonateUrl(u.id)}
-                                className="inline-flex rounded-lg bg-primary-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-600"
-                              >
-                                View dashboard
-                              </a>
-                              <div className="flex flex-wrap gap-1">
-                                {PLAN_ORDER.map((p) => (
-                                  <button
-                                    key={p}
-                                    type="button"
-                                    disabled={!!updating || cur === p}
-                                    onClick={() => setPlan(u.id, p)}
-                                    className={`rounded px-2 py-1 text-xs disabled:opacity-40 ${
-                                      cur === p ? "bg-slate-600 text-slate-100" : "text-slate-500 hover:bg-slate-700 hover:text-slate-200"
-                                    }`}
-                                  >
-                                    {updating === u.id ? "…" : PLAN_LABEL[p]}
-                                  </button>
-                                ))}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <a
+                                  href={impersonateUrl(u.id)}
+                                  className="inline-flex rounded-lg bg-primary-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-600"
+                                >
+                                  View dashboard
+                                </a>
+                                <div className="flex flex-wrap gap-1">
+                                  {PLAN_ORDER.map((p) => (
+                                    <button
+                                      key={p}
+                                      type="button"
+                                      disabled={!!updating || cur === p}
+                                      onClick={() => setPlan(u.id, p)}
+                                      className={`rounded px-2 py-1 text-xs disabled:opacity-40 ${
+                                        cur === p ? "bg-slate-600 text-slate-100" : "text-slate-500 hover:bg-slate-700 hover:text-slate-200"
+                                      }`}
+                                    >
+                                      {updating === u.id ? "…" : PLAN_LABEL[p]}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             </div>
+                            <ConversationPanel
+                              u={u}
+                              expanded={convDetailUserId === u.id}
+                              onToggle={() =>
+                                setConvDetailUserId((prev) => (prev === u.id ? null : u.id))
+                              }
+                              usagePeriodMonth={usagePeriodMonth}
+                            />
                           </li>
                         );
                       })}

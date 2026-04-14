@@ -8,6 +8,7 @@ import HeroSection from "@/components/HeroSection";
 import StatsBar from "@/components/StatsBar";
 import AnimatedSection from "@/components/AnimatedSection";
 import FoundingOfferBlock from "@/components/FoundingOfferBlock";
+import TestimonialsSection from "@/components/TestimonialsSection";
 import { formatFoundingOfferClosingDate, getFoundingOfferEndMs } from "@/lib/founding-offer";
 
 export default function HomePage() {
@@ -280,6 +281,8 @@ export default function HomePage() {
 
         {/* Live chat + dashboard preview */}
         <LandingChatSection />
+
+        <TestimonialsSection />
 
         {/* Pricing */}
         <section id="pricing" className="relative border-t border-slate-800 bg-slate-900/30 px-4 py-16 sm:px-6 lg:px-8 lg:py-24 overflow-hidden">

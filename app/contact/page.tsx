@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import TestimonialsSection from "@/components/TestimonialsSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,8 +13,8 @@ export default function ContactPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-black">
-        <section className="border-b border-slate-800 px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+      <main className="bg-black">
+        <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary-400">
               Contact
@@ -30,6 +31,7 @@ export default function ContactPage() {
             </p>
           </div>
         </section>
+        <TestimonialsSection showHeading />
       </main>
       <Footer />
     </>

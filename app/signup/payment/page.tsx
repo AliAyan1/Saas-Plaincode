@@ -90,13 +90,6 @@ function PaymentInner() {
       >
         {loading ? "Redirecting…" : copy.cta}
       </Button>
-
-      <p className="mt-6 hidden text-center text-xs leading-relaxed text-slate-500 md:block">
-        After payment you&apos;ll return to your dashboard. Configure Stripe price IDs in production (
-        <code className="break-all text-slate-400">STRIPE_PRICE_ID_GROWTH_MONTHLY</code>,{" "}
-        <code className="break-all text-slate-400">STRIPE_PRICE_ID_PRO_MONTHLY</code>,{" "}
-        <code className="break-all text-slate-400">STRIPE_PRICE_ID_AGENCY_MONTHLY</code>).
-      </p>
     </Card>
   );
 }
