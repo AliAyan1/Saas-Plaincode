@@ -6,6 +6,7 @@ import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { planHasPaidConversationTier, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
 import { resolvedWidgetAccentColor } from "@/lib/widget-color";
+import { formatAssistantMessageForDisplay } from "@/lib/format-assistant-message";
 
 interface ChatPanelProps {
   compact?: boolean;
@@ -448,7 +449,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">
                       {m.content}
                     </p>
                   </div>
@@ -475,9 +476,9 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
                       : undefined
                   }
                 >
-                  <p className="whitespace-pre-wrap">
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                     {m.role === "assistant"
-                      ? m.content.replace(/\*+/g, "").replace(/• /g, "- ")
+                      ? formatAssistantMessageForDisplay(m.content)
                       : m.content}
                   </p>
                 </div>

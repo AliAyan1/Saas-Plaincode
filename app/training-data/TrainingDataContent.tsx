@@ -5,6 +5,7 @@ import Card from "@/components/Card";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { useRouter } from "next/navigation";
+import { formatAssistantMessageForDisplay } from "@/lib/format-assistant-message";
 
 const SITEMAP_INITIAL = 4;
 const PRODUCTS_INITIAL = 6;
@@ -34,6 +35,9 @@ export default function TrainingDataContent() {
       ? scrapedData.products
       : null;
   const websiteFeed = scrapedData?.content || "";
+  const websiteFeedFormatted = websiteFeed
+    ? formatAssistantMessageForDisplay(websiteFeed)
+    : "";
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
@@ -171,15 +175,14 @@ export default function TrainingDataContent() {
             about your store.
           </p>
           {websiteFeed ? (
-            <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300 whitespace-pre-wrap">
+            <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300 whitespace-pre-wrap break-words">
               {(() => {
-                const cleaned = websiteFeed.replace(/\*+/g, "").replace(/• /g, "- ");
-                if (cleaned.length <= 6000) return cleaned;
-                const cut = cleaned.slice(0, 6000);
+                if (websiteFeedFormatted.length <= 6000) return websiteFeedFormatted;
+                const cut = websiteFeedFormatted.slice(0, 6000);
                 const lastSpace = cut.lastIndexOf(" ");
                 return lastSpace > 5500 ? cut.slice(0, lastSpace) : cut;
               })()}
-              {websiteFeed.length > 6000 && (
+              {websiteFeedFormatted.length > 6000 && (
                 <span className="block pt-2 text-[11px] text-slate-500">
                   truncated for preview. Full content is still available to the
                   AI.
