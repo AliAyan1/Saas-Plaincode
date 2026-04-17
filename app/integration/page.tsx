@@ -7,12 +7,15 @@ import StepIndicator from "@/components/StepIndicator";
 import { useBot } from "@/components/BotContext";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { shopifyThemeLiquidSnippet, widgetScriptTagHtml } from "@/lib/widget-snippet";
 
 const STORE_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
   shopify: {
     title: "Shopify",
     steps: [
-      "Online Store → Themes → Edit code → theme.liquid, paste the script just before </body>.",
+      "Online Store → Themes → … → Edit code → open theme.liquid.",
+      "Paste the Shopify Liquid snippet (from step 1) just before </body> — not the plain HTML line, so Theme Check stays clean.",
+      "Save. Preview your store; the chat button should appear bottom-right.",
     ],
   },
   woocommerce: {
@@ -36,7 +39,7 @@ const STORE_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
 export default function IntegrationPage() {
   const router = useRouter();
   const { chatbotId, setChatbotId } = useBot();
-  const [copied, setCopied] = useState(false);
+  const [copiedKind, setCopiedKind] = useState<"embed" | "shopify" | null>(null);
   const [storeType, setStoreType] = useState<string>("custom");
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -59,16 +62,14 @@ export default function IntegrationPage() {
       .catch(() => {});
   }, []);
 
-  const widgetSnippet =
-    origin && chatbotId
-      ? `<script src="${origin}/widget.js" data-bot-id="${chatbotId}"></script>`
-      : `<script src="${origin || "https://yourapp.com"}/widget.js" data-bot-id="YOUR_BOT_ID"></script>`;
+  const embedSnippet = widgetScriptTagHtml(origin, chatbotId);
+  const shopifySnippet = shopifyThemeLiquidSnippet(origin, chatbotId);
 
-  const handleCopy = async () => {
+  const handleCopy = async (kind: "embed" | "shopify") => {
     try {
-      await navigator.clipboard.writeText(widgetSnippet);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(kind === "shopify" ? shopifySnippet : embedSnippet);
+      setCopiedKind(kind);
+      setTimeout(() => setCopiedKind(null), 2000);
     } catch {
       // ignore
     }
@@ -102,14 +103,28 @@ export default function IntegrationPage() {
             <Card className="space-y-4">
               <h2 className="text-sm font-semibold text-slate-100">1. Copy the snippet</h2>
               <p className="text-sm text-slate-400">
-                This one script works for Shopify, WooCommerce, and custom sites. It loads the chat button and uses your chatbot.
+                The script uses <code className="rounded bg-slate-800 px-1 text-slate-200">async</code> so it is
+                non-blocking. Use the HTML line for WooCommerce and custom sites; for{" "}
+                <strong className="text-slate-300">Shopify</strong>, copy the Liquid block (Theme Check–friendly).
               </p>
-              <div className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
-                {widgetSnippet}
+              <div>
+                <p className="text-xs font-medium text-slate-300">WooCommerce / custom (HTML)</p>
+                <div className="mt-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
+                  {embedSnippet}
+                </div>
+                <Button variant="secondary" className="mt-2" onClick={() => handleCopy("embed")}>
+                  {copiedKind === "embed" ? "Copied!" : "Copy snippet"}
+                </Button>
               </div>
-              <Button variant="secondary" onClick={handleCopy}>
-                {copied ? "Copied!" : "Copy snippet"}
-              </Button>
+              <div>
+                <p className="text-xs font-medium text-slate-300">Shopify — paste in theme.liquid before &lt;/body&gt;</p>
+                <div className="mt-1 whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
+                  {shopifySnippet}
+                </div>
+                <Button variant="secondary" className="mt-2" onClick={() => handleCopy("shopify")}>
+                  {copiedKind === "shopify" ? "Copied!" : "Copy Shopify snippet"}
+                </Button>
+              </div>
             </Card>
 
             <Card className="space-y-4">

@@ -9,6 +9,7 @@ import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { nearLimitConversationThreshold, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
 import { CUSTOM_PLAN_CALENDLY_URL } from "@/lib/calendly";
+import { shopifyThemeLiquidSnippet, widgetScriptTagHtml } from "@/lib/widget-snippet";
 
 const TOTAL_CONVERSATIONS_FALLBACK = 100;
 
@@ -46,7 +47,7 @@ function DashboardContent() {
     userPlan === "agency" ||
     userPlan === "custom" ||
     userPlan === "business";
-  const [copied, setCopied] = useState(false);
+  const [copiedKind, setCopiedKind] = useState<"embed" | "shopify" | null>(null);
   const [stats, setStats] = useState<{
     totalConversations: number;
     conversationLimit: number | null;
@@ -228,18 +229,15 @@ function DashboardContent() {
 
   const displayActivity = activityFromApi.length > 0 ? activityFromApi : recentActivity;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const widgetSnippet = origin && chatbotId
-    ? `<script src="${origin}/widget.js" data-bot-id="${chatbotId}"></script>`
-    : `<script src="https://yourapp.com/widget.js" data-bot-id="YOUR_BOT_ID"></script>`;
+  const embedSnippet = widgetScriptTagHtml(origin, chatbotId);
+  const shopifySnippet = shopifyThemeLiquidSnippet(origin, chatbotId);
 
-  const handleCopySnippet = async () => {
-    const snippet = origin && chatbotId
-      ? `<script src="${origin}/widget.js" data-bot-id="${chatbotId}"></script>`
-      : widgetSnippet;
+  const handleCopySnippet = async (kind: "embed" | "shopify") => {
+    const snippet = kind === "shopify" ? shopifySnippet : embedSnippet;
     try {
       await navigator.clipboard.writeText(snippet);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedKind(kind);
+      setTimeout(() => setCopiedKind(null), 2000);
     } catch {
       // ignore
     }
@@ -382,17 +380,24 @@ function DashboardContent() {
                 Integration - Install your chatbot
               </h2>
               <p className="mt-1 text-xs text-slate-400">
-                Copy this snippet and add it to your website (Custom, WooCommerce, or any site) to embed the chatbot. Paste before &lt;/body&gt; in your theme or layout. Conversations are stored in real time.
+                Paste before <code className="rounded bg-slate-800 px-1">&lt;/body&gt;</code>. The script uses{" "}
+                <code className="rounded bg-slate-800 px-1">async</code> so it does not block your page. Shopify: use the
+                Liquid block below to satisfy Theme Check (RemoteAsset + parser-blocking).
               </p>
-              <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
-                {widgetSnippet}
+              <p className="mt-3 text-xs font-medium text-slate-300">Any site (HTML)</p>
+              <div className="mt-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
+                {embedSnippet}
+              </div>
+              <Button variant="secondary" className="mt-2" onClick={() => handleCopySnippet("embed")}>
+                {copiedKind === "embed" ? "Copied!" : "Copy snippet"}
+              </Button>
+              <p className="mt-4 text-xs font-medium text-slate-300">Shopify — theme.liquid</p>
+              <div className="mt-1 whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs font-mono text-slate-100 break-all">
+                {shopifySnippet}
               </div>
               <div className="mt-3 flex flex-col items-start gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={handleCopySnippet}
-                >
-                  {copied ? "Copied!" : "Copy snippet"}
+                <Button variant="secondary" onClick={() => handleCopySnippet("shopify")}>
+                  {copiedKind === "shopify" ? "Copied!" : "Copy Shopify snippet"}
                 </Button>
                 <div className="flex flex-wrap gap-2">
                   <Link href="/integration">

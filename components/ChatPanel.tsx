@@ -5,7 +5,7 @@ import Link from "next/link";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { planHasPaidConversationTier, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
-import { resolvedWidgetAccentColor } from "@/lib/widget-color";
+import { contrastingForegroundForHex, resolvedWidgetAccentColor } from "@/lib/widget-color";
 import { formatAssistantMessageForDisplay } from "@/lib/format-assistant-message";
 
 interface ChatPanelProps {
@@ -295,6 +295,8 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
   const disabled = loading || (!unlimitedRemaining && conversationRemaining <= 0);
 
   const paidHidesPlainbotBranding = planHasPaidConversationTier(userPlan);
+  const embedAccentFg =
+    embed && embedAccent ? contrastingForegroundForHex(embedAccent) : undefined;
   const storeHeaderLabel = (() => {
     const title = (scrapedData?.title || "").trim();
     if (title) return title;
@@ -466,13 +468,13 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
                   className={`max-w-[80%] rounded-2xl px-3 py-2 ${
                     m.role === "user"
                       ? embed && embedAccent
-                        ? "text-white rounded-br-sm"
+                        ? "rounded-br-sm"
                         : "bg-primary-600 text-white rounded-br-sm"
                       : "bg-slate-800 text-slate-100 rounded-bl-sm"
                   }`}
                   style={
                     m.role === "user" && embed && embedAccent
-                      ? { backgroundColor: embedAccent }
+                      ? { backgroundColor: embedAccent, color: embedAccentFg }
                       : undefined
                   }
                 >
@@ -528,7 +530,11 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
         <div className="flex items-end gap-2">
           <textarea
             rows={compact ? 2 : 3}
-            className="min-h-[44px] flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`min-h-[44px] flex-1 resize-none rounded-xl border border-slate-700 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+              embed
+                ? "!bg-[#0f172a] !text-[#f1f5f9] placeholder:!text-slate-500"
+                : "bg-slate-900 text-slate-100 placeholder:text-slate-500"
+            }`}
             placeholder={
               !unlimitedRemaining && conversationRemaining <= 0
                 ? "You have used all conversations for this period."
@@ -545,7 +551,11 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
             className="shrink-0"
             style={
               embed && embedAccent
-                ? { backgroundColor: embedAccent, backgroundImage: "none" }
+                ? {
+                    backgroundColor: embedAccent,
+                    backgroundImage: "none",
+                    color: embedAccentFg,
+                  }
                 : undefined
             }
           >

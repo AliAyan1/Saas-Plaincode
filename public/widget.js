@@ -18,7 +18,7 @@
   var supportReplyPollTimer = null;
 
   var styles =
-    ".ecom-widget-btn{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;border:none;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;cursor:pointer;box-shadow:0 4px 14px rgba(249,115,22,0.4);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:0;}.ecom-widget-btn:hover{opacity:0.95;}.ecom-widget-btn svg{display:block;flex-shrink:0;}.ecom-widget-panel{position:fixed;bottom:86px;right:20px;width:380px;max-width:calc(100vw - 40px);height:420px;max-height:70vh;background:#1e293b;border:1px solid #334155;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,0.4);display:flex;flex-direction:column;z-index:2147483645;font-family:system-ui,-apple-system,sans-serif;}.ecom-widget-panel.hidden{display:none;}.ecom-widget-head{flex-shrink:0;padding:10px 12px;border-bottom:1px solid #334155;font-weight:600;font-size:15px;color:#f1f5f9;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.ecom-widget-messages{flex:1;min-height:0;overflow-y:auto;padding:12px;}.ecom-widget-msg{margin-bottom:10px;padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.4;}.ecom-widget-msg.user{background:#334155;color:#f1f5f9;margin-left:24px;}.ecom-widget-msg.assistant{background:#0f172a;color:#e2e8f0;margin-right:24px;}.ecom-widget-form{display:flex;gap:8px;padding:12px;border-top:1px solid #334155;}.ecom-widget-input{flex:1;padding:10px 14px;border:1px solid #475569;border-radius:10px;background:#0f172a;color:#f1f5f9;font-size:14px;outline:none;}.ecom-widget-input:focus{border-color:#f97316;}.ecom-widget-send{padding:10px 16px;border:none;border-radius:10px;background:#f97316;color:#fff;font-weight:600;cursor:pointer;font-size:14px;}.ecom-widget-send:hover{opacity:0.9;}.ecom-widget-send:disabled{opacity:0.5;cursor:not-allowed;}.ecom-widget-powered{flex-shrink:0;padding:6px 12px 8px;border-top:1px solid #334155;font-size:11px;color:#64748b;text-align:center;}";
+    ".ecom-widget-btn{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;border:none;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;cursor:pointer;box-shadow:0 4px 14px rgba(249,115,22,0.4);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:0;}.ecom-widget-btn:hover{opacity:0.95;}.ecom-widget-btn svg{display:block;flex-shrink:0;}.ecom-widget-panel{position:fixed;bottom:86px;right:20px;width:380px;max-width:calc(100vw - 40px);height:420px;max-height:70vh;background:#1e293b;border:1px solid #334155;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,0.4);display:flex;flex-direction:column;z-index:2147483645;font-family:system-ui,-apple-system,sans-serif;color-scheme:dark;}.ecom-widget-panel.hidden{display:none;}.ecom-widget-head{flex-shrink:0;padding:10px 12px;border-bottom:1px solid #334155;font-weight:600;font-size:15px;color:#f1f5f9;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.ecom-widget-messages{flex:1;min-height:0;overflow-y:auto;padding:12px;}.ecom-widget-msg{margin-bottom:10px;padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.4;}.ecom-widget-msg.user{background:#334155;color:#f1f5f9;margin-left:24px;}.ecom-widget-msg.assistant{background:#0f172a;color:#e2e8f0;margin-right:24px;}.ecom-widget-form{display:flex;gap:8px;padding:12px;border-top:1px solid #334155;}.ecom-widget-input{flex:1;padding:10px 14px;border:1px solid #475569;border-radius:10px;background:#0f172a;color:#f1f5f9;font-size:14px;outline:none;}.ecom-widget-input::placeholder{color:#94a3b8;opacity:1;}.ecom-widget-input:focus{border-color:#f97316;}.ecom-widget-send{padding:10px 16px;border:none;border-radius:10px;background:#f97316;color:#fff;font-weight:600;cursor:pointer;font-size:14px;}.ecom-widget-send:hover{opacity:0.9;}.ecom-widget-send:disabled{opacity:0.5;cursor:not-allowed;}.ecom-widget-powered{flex-shrink:0;padding:6px 12px 8px;border-top:1px solid #334155;font-size:11px;color:#64748b;text-align:center;}";
 
   function parseHex(hex) {
     var h = (hex || "").replace(/^#/, "");
@@ -33,6 +33,26 @@
     return { r: r, g: g, b: b };
   }
 
+  function linearizeChannel(c) {
+    var s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  }
+
+  function relativeLuminanceFromRgb(p) {
+    if (!p) return null;
+    var R = linearizeChannel(p.r);
+    var G = linearizeChannel(p.g);
+    var B = linearizeChannel(p.b);
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  }
+
+  /** Dark text on light accents, white on dark — matches dashboard embed behaviour. */
+  function contrastingForeground(hex) {
+    var L = relativeLuminanceFromRgb(parseHex(hex));
+    if (L == null) return "#ffffff";
+    return L > 0.55 ? "#0f172a" : "#ffffff";
+  }
+
   function applyWidgetAccent(hex, btnEl, sendEl, inputEl) {
     var p = parseHex(hex);
     if (!p) return;
@@ -42,12 +62,15 @@
     var r2 = Math.max(0, Math.round(r * 0.82));
     var g2 = Math.max(0, Math.round(g * 0.82));
     var b2 = Math.max(0, Math.round(b * 0.82));
+    var fg = contrastingForeground(hex);
     if (btnEl) {
       btnEl.style.background = "linear-gradient(135deg, rgb(" + r + "," + g + "," + b + "), rgb(" + r2 + "," + g2 + "," + b2 + "))";
       btnEl.style.boxShadow = "0 4px 14px rgba(" + r + "," + g + "," + b + ",0.45)";
+      btnEl.style.color = fg;
     }
     if (sendEl) {
       sendEl.style.background = "rgb(" + r + "," + g + "," + b + ")";
+      sendEl.style.color = fg;
     }
     if (inputEl) {
       var defBorder = "#475569";
@@ -118,6 +141,10 @@
     root.appendChild(btn);
     root.appendChild(panel);
     document.body.appendChild(root);
+
+    input.style.setProperty("background-color", "#0f172a", "important");
+    input.style.setProperty("color", "#f1f5f9", "important");
+    input.style.setProperty("caret-color", "#f1f5f9", "important");
 
     applyWidgetAccent(accentHex, btn, send, input);
 
