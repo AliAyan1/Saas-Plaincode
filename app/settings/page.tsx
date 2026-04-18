@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { DEFAULT_WIDGET_ACCENT, normalizeWidgetAccentColor } from "@/lib/widget-color";
+import UploadedDocsList from "@/components/UploadedDocsList";
+import {
+  conversationLimitForPlan,
+  normalizePlanParam,
+  storeLimitForPlan,
+  UNLIMITED_CONVERSATIONS_DISPLAY,
+} from "@/lib/plans";
 
 const PERSONALITIES = ["Friendly", "Professional", "Sales-focused", "Premium Luxury"] as const;
 
@@ -26,7 +34,14 @@ const LANGUAGES = [
 ];
 
 export default function SettingsPage() {
-  const { userPlan, setUserPlan, chatbotId } = useBot();
+  const {
+    userPlan,
+    setUserPlan,
+    chatbotId,
+    setChatbotId,
+    setConversationRemaining,
+    setStoreLimit,
+  } = useBot();
 
   const [forwardEmail, setForwardEmail] = useState("");
   const [forwardEmailSaving, setForwardEmailSaving] = useState(false);
@@ -38,13 +53,17 @@ export default function SettingsPage() {
 
   const [language, setLanguage] = useState("en");
 
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [pdfMessage, setPdfMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [docsRefresh, setDocsRefresh] = useState(0);
 
   const [widgetAccentColor, setWidgetAccentColor] = useState(DEFAULT_WIDGET_ACCENT);
   const [widgetColorSaving, setWidgetColorSaving] = useState(false);
   const [widgetColorMessage, setWidgetColorMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/users/forward-email")
@@ -54,6 +73,17 @@ export default function SettingsPage() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!chatbotId) {
+      fetch("/api/chatbots/me")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.chatbot?.id) setChatbotId(data.chatbot.id);
+        })
+        .catch(() => {});
+    }
+  }, [chatbotId, setChatbotId]);
 
   useEffect(() => {
     const q = chatbotId ? `?storeId=${encodeURIComponent(chatbotId)}` : "";
@@ -139,14 +169,16 @@ export default function SettingsPage() {
   };
 
   const handlePdfUpload = () => {
-    if (!pdfFile) {
-      setPdfMessage({ type: "error", text: "Choose a file first." });
+    if (pdfFiles.length === 0) {
+      setPdfMessage({ type: "error", text: "Choose one or more files first." });
       return;
     }
     setPdfMessage(null);
     setPdfUploading(true);
     const formData = new FormData();
-    formData.append("file", pdfFile);
+    for (const f of pdfFiles) {
+      formData.append("files", f);
+    }
     if (chatbotId) formData.append("chatbotId", chatbotId);
     fetch("/api/knowledge/upload", { method: "POST", body: formData })
       .then((r) => r.json())
@@ -154,13 +186,117 @@ export default function SettingsPage() {
         if (data.error) {
           setPdfMessage({ type: "error", text: data.error });
         } else {
-          setPdfMessage({ type: "ok", text: data.message || data.warning || `${pdfFile.name} uploaded. The AI will use it when answering.` });
-          setPdfFile(null);
+          setPdfMessage({
+            type: "ok",
+            text:
+              data.message ||
+              data.warning ||
+              (pdfFiles.length === 1
+                ? `${pdfFiles[0].name} uploaded.`
+                : `${data.count ?? pdfFiles.length} file(s) uploaded.`),
+          });
+          setPdfFiles([]);
+          setDocsRefresh((n) => n + 1);
         }
       })
       .catch(() => setPdfMessage({ type: "error", text: "Upload failed." }))
       .finally(() => setPdfUploading(false));
   };
+
+  const handleUpgradeToPro = async () => {
+    setCheckoutError(null);
+    setCheckoutBusy(true);
+    try {
+      const res = await fetch("/api/stripe/upgrade-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetPlan: "pro" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.useCheckout) {
+        const res2 = await fetch("/api/stripe/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plan: "pro",
+            successPath: "/dashboard",
+            cancelPath: "/settings",
+          }),
+        });
+        const d2 = await res2.json().catch(() => ({}));
+        if (!res2.ok || !d2.url) {
+          setCheckoutError(typeof d2.error === "string" ? d2.error : "Could not start checkout.");
+          setCheckoutBusy(false);
+          return;
+        }
+        window.location.href = d2.url as string;
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        setCheckoutError(typeof data.error === "string" ? data.error : "Upgrade failed.");
+        setCheckoutBusy(false);
+        return;
+      }
+      setUserPlan("pro");
+      window.location.href = "/dashboard?upgrade=success";
+    } catch {
+      setCheckoutError("Something went wrong.");
+      setCheckoutBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    const t = setTimeout(async () => {
+      await fetch("/api/auth/refresh-session", { method: "POST" });
+      try {
+        const [meRes, statsRes, botRes] = await Promise.all([
+          fetch("/api/me"),
+          fetch("/api/conversations/stats"),
+          fetch(
+            chatbotId
+              ? `/api/chatbots/me?storeId=${encodeURIComponent(chatbotId)}`
+              : "/api/chatbots/me"
+          ),
+        ]);
+        if (meRes.ok) {
+          const me = await meRes.json();
+          if (
+            me?.plan === "growth" ||
+            me?.plan === "pro" ||
+            me?.plan === "agency" ||
+            me?.plan === "custom" ||
+            me?.plan === "business"
+          ) {
+            setUserPlan(me.plan);
+          }
+        }
+        if (statsRes.ok) {
+          const s = await statsRes.json();
+          if (s.unlimited) {
+            setConversationRemaining(UNLIMITED_CONVERSATIONS_DISPLAY);
+          } else if (typeof s.remaining === "number") {
+            setConversationRemaining(Math.max(0, s.remaining));
+          }
+        }
+        if (botRes.ok) {
+          const bot = await botRes.json();
+          if (bot && typeof bot.storeLimit === "number") {
+            setStoreLimit(bot.storeLimit);
+          }
+        }
+      } finally {
+        window.history.replaceState({}, "", "/settings");
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [chatbotId, setUserPlan, setConversationRemaining, setStoreLimit]);
+
+  const billingPlan = normalizePlanParam(userPlan);
+  const proMonthlyConversations = conversationLimitForPlan("pro");
+  const proStoreCap = storeLimitForPlan("pro");
 
   return (
     <AppShell>
@@ -289,27 +425,31 @@ export default function SettingsPage() {
         <Card className="space-y-4">
           <h2 className="text-sm font-semibold text-slate-200">Extra documents for AI training</h2>
           <p className="text-xs text-slate-500">
-            Upload PDFs or TXT files (product lists, FAQs, policies). The AI will use them automatically when answering — e.g. &quot;how many products do you have?&quot; from your catalog.
+            PDF or TXT — you can select multiple files (total up to 4 MB per upload). Each file is stored for this chatbot;
+            remove any you no longer need below.
           </p>
           <div className="rounded-lg border border-dashed border-slate-600 bg-slate-900/50 p-4 space-y-3">
             <input
               type="file"
+              multiple
               accept=".pdf,.txt,application/pdf,text/plain"
               className="block w-full text-sm text-slate-400 file:mr-3 file:rounded file:border-0 file:bg-primary-500/20 file:px-3 file:py-2 file:text-primary-400"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                setPdfFile(f || null);
+                const list = e.target.files ? Array.from(e.target.files) : [];
+                setPdfFiles(list);
                 setPdfMessage(null);
               }}
             />
-            {pdfFile && <p className="text-xs text-slate-400">Selected: {pdfFile.name}</p>}
+            {pdfFiles.length > 0 && (
+              <p className="text-xs text-slate-400">Selected: {pdfFiles.map((f) => f.name).join(", ")}</p>
+            )}
             <Button
               type="button"
               variant="secondary"
-              disabled={pdfUploading || !pdfFile}
+              disabled={pdfUploading || pdfFiles.length === 0}
               onClick={handlePdfUpload}
             >
-              {pdfUploading ? "Uploading…" : "Upload document"}
+              {pdfUploading ? "Uploading…" : "Upload document(s)"}
             </Button>
             {pdfMessage && (
               <p className={`text-xs ${pdfMessage.type === "ok" ? "text-emerald-400" : "text-red-400"}`}>
@@ -317,33 +457,62 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
+          <div className="space-y-2 pt-2">
+            <h3 className="text-xs font-medium text-slate-400">Uploaded documents</h3>
+            <UploadedDocsList chatbotId={chatbotId} refreshTrigger={docsRefresh} />
+          </div>
         </Card>
 
-        {/* Plan (demo) */}
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-200">Plan (demo)</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Switch plan to test Pro features like ticket tracking. Real plan comes from your account when we add auth.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              variant={userPlan === "free" ? "primary" : "outline"}
-              onClick={() => setUserPlan("free")}
-            >
-              Free
-            </Button>
-            <Button
-              variant={userPlan === "pro" ? "primary" : "outline"}
-              onClick={() => setUserPlan("pro")}
-            >
-              Pro
-            </Button>
+        <Card className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-200">Plan & billing</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Pro is billed monthly in Stripe. After payment, your account updates automatically: higher conversation
+              allowance and up to {proStoreCap ?? 5} stores at once (vs 1 on Free).
+            </p>
           </div>
-          {userPlan === "pro" && (
-            <p className="mt-3 text-xs text-emerald-400">
-              Pro active. Every query will create a ticket. View them on the dashboard or Tickets page.
+          <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-3">
+            <p className="text-xs text-slate-500">Current plan</p>
+            <p className="mt-1 text-sm font-semibold capitalize text-slate-100">{billingPlan}</p>
+          </div>
+
+          {(billingPlan === "free" || billingPlan === "growth") && (
+            <div className="space-y-2">
+              <Button variant="primary" disabled={checkoutBusy} onClick={handleUpgradeToPro}>
+                {checkoutBusy ? "Opening Stripe…" : "Upgrade to Pro"}
+              </Button>
+              <p className="text-xs text-slate-500">
+                You&apos;ll pay securely on Stripe, then land on your dashboard with Pro limits (about{" "}
+                {proMonthlyConversations != null ? proMonthlyConversations.toLocaleString() : "3,000"} conversations / month
+                and multiple stores).
+              </p>
+            </div>
+          )}
+
+          {billingPlan === "pro" && (
+            <p className="text-xs text-emerald-400">
+              You&apos;re on Pro. You can connect up to {proStoreCap ?? 5} stores and use the higher monthly conversation
+              pool. Switch stores from the sidebar or dashboard.
             </p>
           )}
+
+          {billingPlan === "agency" && (
+            <p className="text-xs text-slate-400">
+              You&apos;re on the Agency plan. For billing changes, use the arrangement from your onboarding.
+            </p>
+          )}
+
+          {checkoutError && <p className="text-xs text-red-400">{checkoutError}</p>}
+
+          <p className="text-xs text-slate-600">
+            <Link href="/dashboard" className="text-primary-400 hover:text-primary-300">
+              Dashboard
+            </Link>
+            {" · "}
+            <Link href="/pricing" className="text-primary-400 hover:text-primary-300">
+              Compare plans
+            </Link>
+          </p>
         </Card>
       </div>
     </AppShell>

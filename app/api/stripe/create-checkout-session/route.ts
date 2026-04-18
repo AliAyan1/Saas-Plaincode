@@ -12,6 +12,16 @@ function getBaseUrl(): string {
 
 type CheckoutPlan = "growth" | "pro" | "agency";
 
+/** Only these paths may be used for return URLs (open redirects). */
+const ALLOWED_RETURN_PATHS = new Set(["/dashboard", "/settings"]);
+
+function safeReturnPath(raw: unknown, fallback: string): string {
+  if (typeof raw !== "string") return fallback;
+  const pathOnly = raw.trim().split("?")[0] || "";
+  if (!pathOnly.startsWith("/") || pathOnly.startsWith("//") || pathOnly.includes("..")) return fallback;
+  return ALLOWED_RETURN_PATHS.has(pathOnly) ? pathOnly : fallback;
+}
+
 function priceIdForPlan(plan: CheckoutPlan): string | undefined {
   if (plan === "growth") return process.env.STRIPE_PRICE_ID_GROWTH_MONTHLY;
   if (plan === "pro") return process.env.STRIPE_PRICE_ID_PRO_MONTHLY;
@@ -35,10 +45,17 @@ export async function POST(req: Request) {
   }
 
   let checkoutPlan: CheckoutPlan = "growth";
+  let successPath = "/dashboard";
+  let cancelPath = "/signup/payment";
   try {
     const body = await req.json();
     const p = typeof body?.plan === "string" ? body.plan.toLowerCase() : "";
     if (p === "pro" || p === "growth" || p === "agency") checkoutPlan = p;
+    successPath = safeReturnPath(body?.successPath, "/dashboard");
+    const cp = typeof body?.cancelPath === "string" ? body.cancelPath.trim().split("?")[0] : "";
+    if (cp === "/settings" || cp === "/dashboard" || cp === "/signup/payment") {
+      cancelPath = cp;
+    }
   } catch {
     /* empty body */
   }
@@ -70,8 +87,11 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/dashboard?checkout=success`,
-      cancel_url: `${baseUrl}/signup/payment?plan=${checkoutPlan}`,
+      success_url: `${baseUrl}${successPath}?checkout=success`,
+      cancel_url:
+        cancelPath === "/signup/payment"
+          ? `${baseUrl}/signup/payment?plan=${checkoutPlan}`
+          : `${baseUrl}${cancelPath}`,
       customer_email: auth.email,
       client_reference_id: auth.userId,
       metadata: {

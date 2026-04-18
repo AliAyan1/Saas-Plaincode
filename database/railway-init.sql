@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS chatbots (
   INDEX idx_chatbots_active (is_active)
 );
 
+-- CHATBOT DOCUMENTS (multiple PDF/TXT extracts per bot)
+CREATE TABLE IF NOT EXISTS chatbot_documents (
+  id              CHAR(36) PRIMARY KEY,
+  chatbot_id      CHAR(36) NOT NULL,
+  file_name       VARCHAR(500) NOT NULL,
+  content         LONGTEXT NOT NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (chatbot_id) REFERENCES chatbots(id) ON DELETE CASCADE,
+  INDEX idx_chatbot_documents_bot (chatbot_id)
+);
+
 -- CONVERSATIONS
 CREATE TABLE IF NOT EXISTS conversations (
   id              CHAR(36) PRIMARY KEY,

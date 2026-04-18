@@ -1,22 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
 import StepIndicator from "@/components/StepIndicator";
+import UploadedDocsList from "@/components/UploadedDocsList";
 import { useRouter } from "next/navigation";
+import { useBot } from "@/components/BotContext";
 
 export default function KnowledgePage() {
   const router = useRouter();
+  const { chatbotId, setChatbotId } = useBot();
+
+  useEffect(() => {
+    if (chatbotId) return;
+    fetch("/api/chatbots/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.chatbot?.id) setChatbotId(data.chatbot.id);
+      })
+      .catch(() => {});
+  }, [chatbotId, setChatbotId]);
+
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [docsRefresh, setDocsRefresh] = useState(0);
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadError("Choose a file first");
+    if (selectedFiles.length === 0) {
+      setUploadError("Choose one or more files first");
       return;
     }
     setUploading(true);
@@ -24,15 +39,25 @@ export default function KnowledgePage() {
     setUploadSuccess(null);
     try {
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      for (const f of selectedFiles) {
+        formData.append("files", f);
+      }
+      if (chatbotId) formData.append("chatbotId", chatbotId);
       const res = await fetch("/api/knowledge/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) {
-        setUploadError(data.error || "Upload failed");
+        setUploadError(typeof data.error === "string" ? data.error : "Upload failed");
         return;
       }
-      setUploadSuccess(`${selectedFile.name} uploaded`);
-      setSelectedFile(null);
+      const msg =
+        typeof data.message === "string"
+          ? data.message
+          : typeof data.warning === "string"
+            ? data.warning
+            : "Upload complete";
+      setUploadSuccess(msg);
+      setSelectedFiles([]);
+      setDocsRefresh((n) => n + 1);
     } catch {
       setUploadError("Upload failed");
     } finally {
@@ -52,39 +77,41 @@ export default function KnowledgePage() {
             Knowledge & memory
           </h1>
           <p className="mt-2 text-slate-400">
-            Optional: upload docs and we store the last messages for context.
+            Optional: upload documents and we keep conversation context automatically.
           </p>
         </div>
 
-        {/* Upload documents */}
         <Card className="space-y-4">
           <h2 className="text-sm font-semibold text-slate-100">
             Upload documents (optional)
           </h2>
           <p className="text-sm text-slate-400">
-            Upload manuals, policies, or guides. The AI uses them when answering. PDF and TXT supported.
+            Upload one or many PDFs or TXT files in one go (total size up to 4 MB per request — hosting limit). Each file
+            is stored separately; the AI sees all of them together with your scraped store content. Remove a file below
+            if you no longer want it in context.
           </p>
           <div className="rounded-lg border border-dashed border-slate-600 bg-slate-900/50 p-4 space-y-3">
             <input
               type="file"
+              multiple
               accept=".pdf,.txt,application/pdf,text/plain"
               className="block w-full text-sm text-slate-400 file:mr-3 file:rounded file:border-0 file:bg-primary-500/20 file:px-3 file:py-2 file:text-primary-400"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                setSelectedFile(f || null);
+                const list = e.target.files ? Array.from(e.target.files) : [];
+                setSelectedFiles(list);
                 setUploadError(null);
                 setUploadSuccess(null);
               }}
             />
-            {selectedFile && (
+            {selectedFiles.length > 0 && (
               <p className="text-xs text-slate-400">
-                Selected: {selectedFile.name}
+                Selected: {selectedFiles.map((f) => f.name).join(", ")}
               </p>
             )}
             <Button
               type="button"
               variant="secondary"
-              disabled={uploading || !selectedFile}
+              disabled={uploading || selectedFiles.length === 0}
               onClick={handleUpload}
             >
               {uploading ? "Uploading…" : "Upload"}
@@ -96,9 +123,13 @@ export default function KnowledgePage() {
               <p className="text-xs text-amber-400">{uploadError}</p>
             )}
           </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-slate-300">Uploaded for this chatbot</h3>
+            <UploadedDocsList chatbotId={chatbotId} refreshTrigger={docsRefresh} />
+          </div>
         </Card>
 
-        {/* Memory — we do it */}
         <Card className="space-y-2">
           <h2 className="text-sm font-semibold text-slate-100">
             Conversation memory
@@ -108,7 +139,6 @@ export default function KnowledgePage() {
           </p>
         </Card>
 
-        {/* Low confidence → forward */}
         <Card className="border-amber-500/30 bg-amber-500/5 space-y-2">
           <h2 className="text-sm font-semibold text-amber-200">
             Low confidence

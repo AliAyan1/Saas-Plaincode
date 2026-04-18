@@ -18,6 +18,7 @@ if (fs.existsSync(localPath)) {
 }
 
 const mysql = require("mysql2/promise");
+const { randomUUID } = require("crypto");
 
 async function hasColumn(conn, table, column) {
   const [[db]] = await conn.execute("SELECT DATABASE() AS db");
@@ -254,6 +255,54 @@ async function run() {
       console.log("  OK");
     } else {
       console.log("chatbots.uploaded_docs_text already exists, skip.");
+    }
+
+    // chatbot_documents (multiple PDF/TXT extracts per chatbot)
+    const [docTables] = await conn.execute(
+      "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'chatbot_documents'",
+      [database]
+    );
+    if (!Array.isArray(docTables) || docTables.length === 0) {
+      console.log("Creating chatbot_documents...");
+      await conn.execute(`
+        CREATE TABLE chatbot_documents (
+          id              CHAR(36) PRIMARY KEY,
+          chatbot_id      CHAR(36) NOT NULL,
+          file_name       VARCHAR(500) NOT NULL,
+          content         LONGTEXT NOT NULL,
+          created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (chatbot_id) REFERENCES chatbots(id) ON DELETE CASCADE,
+          INDEX idx_chatbot_documents_bot (chatbot_id)
+        )
+      `);
+      console.log("  OK");
+    } else {
+      console.log("chatbot_documents already exists, skip.");
+    }
+
+    // One-time backfill: legacy uploaded_docs_text -> first document row
+    try {
+      const [legacyBots] = await conn.execute(
+        "SELECT c.id AS id, c.uploaded_docs_text AS txt FROM chatbots c WHERE c.uploaded_docs_text IS NOT NULL AND TRIM(c.uploaded_docs_text) != ''"
+      );
+      const lb = Array.isArray(legacyBots) ? legacyBots : [];
+      for (const row of lb) {
+        const [existing] = await conn.execute("SELECT id FROM chatbot_documents WHERE chatbot_id = ? LIMIT 1", [
+          row.id,
+        ]);
+        if (Array.isArray(existing) && existing.length > 0) continue;
+        const id = randomUUID();
+        const fn = "Previous upload (migrated)";
+        await conn.execute(
+          "INSERT INTO chatbot_documents (id, chatbot_id, file_name, content) VALUES (?, ?, ?, ?)",
+          [id, row.id, fn, row.txt]
+        );
+      }
+      if (lb.length > 0) {
+        console.log("Backfilled chatbot_documents from uploaded_docs_text where needed.");
+      }
+    } catch (e) {
+      console.log("chatbot_documents backfill skipped:", e.message || e);
     }
 
     // chatbots.language (response language for the chatbot)

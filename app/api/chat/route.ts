@@ -4,6 +4,7 @@ import { getDbConnection } from "@/lib/db";
 import { randomUUID } from "crypto";
 import { checkRateLimit, LIMITS } from "@/lib/rate-limit";
 import { sendLimitReachedEmail } from "@/lib/usage-emails";
+import { getMergedUploadedDocsText } from "@/lib/knowledge-documents";
 
 export const runtime = "nodejs";
 
@@ -153,13 +154,21 @@ export async function POST(req: NextRequest) {
           bots = (rows as Record<string, unknown>[]).map((r) => ({ ...r, guardRails: null, uploadedDocsText: null, language: "en" })) as BotRow[];
         } else throw err;
       }
-      await conn.end();
-      botUserId = bots[0]?.userId ?? null;
 
       if (bots.length === 0) {
+        await conn.end();
         return NextResponse.json({ error: "Chatbot not found or inactive." }, { status: 404, headers: corsHeaders });
       }
       const bot = bots[0];
+      botUserId = bot.userId ?? null;
+      let mergedUploadedDocs: string | undefined;
+      try {
+        const merged = await getMergedUploadedDocsText(conn, chatbotId, bot.uploadedDocsText);
+        mergedUploadedDocs = merged.trim() ? merged : undefined;
+      } finally {
+        await conn.end();
+      }
+
       personality = bot.personality || "Friendly";
       let products: { name?: string; price?: string }[] = [];
       if (bot.productsJson) {
@@ -176,7 +185,7 @@ export async function POST(req: NextRequest) {
         description: bot.websiteDescription ?? undefined,
         content: bot.websiteContent ?? undefined,
         products,
-        uploadedDocsText: bot.uploadedDocsText ?? undefined,
+        uploadedDocsText: mergedUploadedDocs,
       };
       if (bot.guardRails && bot.guardRails.trim()) {
         (scrapedData as { guardRails?: string }).guardRails = bot.guardRails.trim();
