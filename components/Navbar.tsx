@@ -50,7 +50,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { sidebarVisible, setMobileSidebarOpen } = useAppShell();
 
-  const isAppArea = APP_ROUTES.some((p) => pathname.startsWith(p));
+  const path = pathname ?? "";
+  const isAppArea = APP_ROUTES.some((p) => path.startsWith(p));
   const showAppMenuButton = isAppArea && sidebarVisible;
 
   const [visible, setVisible] = useState(true);

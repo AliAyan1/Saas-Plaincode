@@ -74,12 +74,16 @@ export async function GET(req: NextRequest) {
       websiteUrl?: string | null;
       plan?: string | null;
       widgetAccentColor?: string | null;
+      widgetLogoMime?: string | null;
+      widgetLogoBase64?: string | null;
     };
     let rows: Row[];
     try {
       const [r] = await conn.execute(
         `SELECT c.name AS name, c.website_title AS websiteTitle, c.website_url AS websiteUrl,
-                c.widget_accent_color AS widgetAccentColor, u.plan AS plan
+                c.widget_accent_color AS widgetAccentColor,
+                c.widget_logo_mime AS widgetLogoMime, c.widget_logo_base64 AS widgetLogoBase64,
+                u.plan AS plan
          FROM chatbots c
          INNER JOIN users u ON u.id = c.user_id
          WHERE c.id = ? AND c.is_active = 1`,
@@ -116,12 +120,17 @@ export async function GET(req: NextRequest) {
     const headerTitle = paid
       ? storeDisplayName(row.websiteTitle, row.name, row.websiteUrl)
       : "Plainbot";
+    const logoDataUrl =
+      paid && row.widgetLogoMime && row.widgetLogoBase64
+        ? `data:${row.widgetLogoMime};base64,${row.widgetLogoBase64}`
+        : null;
 
     return NextResponse.json(
       {
         headerTitle,
         showPoweredBy: !paid,
         accentColor: resolvedWidgetAccentColor(row.widgetAccentColor ?? null),
+        logoDataUrl,
       },
       { headers: corsHeaders }
     );

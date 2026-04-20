@@ -325,6 +325,26 @@ async function run() {
       console.log("chatbots.widget_accent_color already exists, skip.");
     }
 
+    // chatbots.widget_logo_* (paid widgets: optional logo in header; stored as base64)
+    if (!(await hasColumn(conn, "chatbots", "widget_logo_mime"))) {
+      console.log("Adding chatbots.widget_logo_mime...");
+      await conn.execute(
+        "ALTER TABLE chatbots ADD COLUMN widget_logo_mime VARCHAR(50) DEFAULT NULL"
+      );
+      console.log("  OK");
+    } else {
+      console.log("chatbots.widget_logo_mime already exists, skip.");
+    }
+    if (!(await hasColumn(conn, "chatbots", "widget_logo_base64"))) {
+      console.log("Adding chatbots.widget_logo_base64...");
+      await conn.execute(
+        "ALTER TABLE chatbots ADD COLUMN widget_logo_base64 LONGTEXT DEFAULT NULL"
+      );
+      console.log("  OK");
+    } else {
+      console.log("chatbots.widget_logo_base64 already exists, skip.");
+    }
+
     // conversation_usage (per-user per-month count for limits)
     const [cuTables] = await conn.execute(
       "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'conversation_usage'",

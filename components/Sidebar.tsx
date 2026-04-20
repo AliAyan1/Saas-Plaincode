@@ -81,6 +81,7 @@ export default function Sidebar() {
   const { userPlan } = useBot();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useAppShell();
   const isPro = userPlan === "pro";
+  const path = pathname ?? "";
 
   const sidebarContent = (
     <div className="flex h-full flex-col px-3 py-6">
@@ -91,7 +92,7 @@ export default function Sidebar() {
             </p>
             <ul className="space-y-0.5">
               {MAIN_MENU.filter((item) => !("proOnly" in item && item.proOnly) || isPro).map(({ href, label, icon }) => {
-                const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+                const isActive = path === href || (href !== "/dashboard" && path.startsWith(href));
                 return (
                   <li key={href}>
                     <Link
@@ -117,7 +118,7 @@ export default function Sidebar() {
             </p>
             <ul className="space-y-0.5">
               {CONFIG.map(({ href, label, icon }) => {
-                const isActive = pathname === href || pathname.startsWith(href + "/");
+                const isActive = path === href || path.startsWith(href + "/");
                 return (
                   <li key={href}>
                     <Link

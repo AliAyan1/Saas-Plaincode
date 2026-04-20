@@ -199,9 +199,9 @@ function DashboardContent() {
   // After Stripe checkout redirect or in-app subscription upgrade, refresh plan from DB
   useEffect(() => {
     const ok =
-      searchParams.get("checkout") === "success" ||
-      searchParams.get("pro") === "success" ||
-      searchParams.get("upgrade") === "success";
+      searchParams?.get("checkout") === "success" ||
+      searchParams?.get("pro") === "success" ||
+      searchParams?.get("upgrade") === "success";
     if (!ok) return;
     const t = setTimeout(async () => {
       await fetch("/api/auth/refresh-session", { method: "POST" });

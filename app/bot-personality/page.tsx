@@ -54,6 +54,9 @@ export default function BotPersonalityPage() {
   const [guardRails, setGuardRails] = useState("");
   const [language, setLanguage] = useState("en");
   const [widgetAccentColor, setWidgetAccentColor] = useState(DEFAULT_WIDGET_ACCENT);
+  const [widgetName, setWidgetName] = useState("");
+  const [widgetLogoDataUrl, setWidgetLogoDataUrl] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   useEffect(() => {
     const q = chatbotId ? `?storeId=${encodeURIComponent(chatbotId)}` : "";
@@ -63,6 +66,10 @@ export default function BotPersonalityPage() {
         if (data.chatbot?.personality) setPersonality(data.chatbot.personality);
         if (typeof data.chatbot?.guardRails === "string") setGuardRails(data.chatbot.guardRails);
         if (data.chatbot?.language) setLanguage(data.chatbot.language);
+        if (typeof data.chatbot?.name === "string") setWidgetName(data.chatbot.name);
+        if (typeof data.chatbot?.widgetLogoDataUrl === "string" && data.chatbot.widgetLogoDataUrl.trim()) {
+          setWidgetLogoDataUrl(data.chatbot.widgetLogoDataUrl.trim());
+        }
         const w = data.chatbot?.widgetAccentColor;
         if (typeof w === "string" && normalizeWidgetAccentColor(w)) {
           setWidgetAccentColor(normalizeWidgetAccentColor(w)!);
@@ -101,9 +108,11 @@ export default function BotPersonalityPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           personality: personality || undefined,
+          name: widgetName || undefined,
           guardRails,
           language,
           widgetAccentColor: accent,
+          widgetLogoDataUrl: widgetLogoDataUrl ?? "",
           ...(chatbotId ? { chatbotId } : {}),
         }),
       });
@@ -111,6 +120,35 @@ export default function BotPersonalityPage() {
       // continue anyway
     }
     router.push("/bot-preview");
+  };
+
+  const handleLogoChange = async (file: File | null) => {
+    setLogoError(null);
+    if (!file) {
+      setWidgetLogoDataUrl(null);
+      return;
+    }
+    const allowed = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"]);
+    if (!allowed.has(file.type)) {
+      setLogoError("Please upload a PNG, JPEG, WebP, or SVG logo.");
+      return;
+    }
+    // Hard cap ~220KB to match server validation.
+    if (file.size > 220 * 1024) {
+      setLogoError("Logo is too large. Please upload a file under 220KB.");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read_failed"));
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.readAsDataURL(file);
+    }).catch(() => "");
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+      setLogoError("Could not read the logo file. Try another image.");
+      return;
+    }
+    setWidgetLogoDataUrl(dataUrl);
   };
 
   return (
@@ -205,7 +243,55 @@ export default function BotPersonalityPage() {
             Colour of the floating chat button and send button in your site snippet. Choose any colour. Paid plans
             remove &quot;Powered by Plainbot&quot; from the widget; your accent still applies on every plan.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-300">Widget header name</p>
+              <input
+                type="text"
+                value={widgetName}
+                onChange={(e) => setWidgetName(e.target.value)}
+                placeholder={scrapedData?.title || "Your store name"}
+                className="w-full rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500">
+                This is the title customers see in the chat widget header.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-300">Logo (paid plans)</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={(e) => handleLogoChange(e.target.files?.[0] ?? null)}
+                  className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-200 hover:file:bg-slate-700"
+                />
+                {widgetLogoDataUrl ? (
+                  <img
+                    src={widgetLogoDataUrl}
+                    alt="Widget logo preview"
+                    className="h-10 w-10 rounded-md border border-slate-700 bg-slate-900 object-contain"
+                  />
+                ) : null}
+              </div>
+              {logoError ? <p className="text-xs text-red-400">{logoError}</p> : null}
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-slate-500">PNG/JPEG/WebP/SVG • under 220KB</p>
+                {widgetLogoDataUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setWidgetLogoDataUrl(null)}
+                    className="text-[11px] font-medium text-slate-300 hover:text-slate-100"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             <input
               type="color"
               value={normalizeWidgetAccentColor(widgetAccentColor) ?? DEFAULT_WIDGET_ACCENT}

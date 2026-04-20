@@ -11,7 +11,7 @@ import { resetBotStorageForNewAccount } from "@/lib/bot-local-storage";
 
 function SignupContent() {
   const searchParams = useSearchParams();
-  const planParam = (searchParams.get("plan") || "free").toLowerCase();
+  const planParam = ((searchParams?.get("plan") || "free") as string).toLowerCase();
   const plan =
     planParam === "growth"
       ? "growth"

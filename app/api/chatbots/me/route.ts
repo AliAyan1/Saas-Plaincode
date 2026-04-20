@@ -18,6 +18,8 @@ type BotRow = {
   language?: string | null;
   guardRails: string | null;
   widgetAccentColor?: string | null;
+  widgetLogoMime?: string | null;
+  widgetLogoBase64?: string | null;
   isActive: number;
   createdAt: Date;
 };
@@ -35,6 +37,10 @@ function parseProducts(productsJson: string | null): { name: string }[] {
 
 function toChatbotResponse(c: BotRow) {
   const products = parseProducts(c.productsJson);
+  const logoDataUrl =
+    c.widgetLogoMime && c.widgetLogoBase64
+      ? `data:${c.widgetLogoMime};base64,${c.widgetLogoBase64}`
+      : null;
   return {
     id: c.id,
     name: c.name,
@@ -47,9 +53,24 @@ function toChatbotResponse(c: BotRow) {
     language: c.language ?? "en",
     guardRails: c.guardRails ?? "",
     widgetAccentColor: c.widgetAccentColor ?? null,
+    widgetLogoDataUrl: logoDataUrl,
     isActive: !!c.isActive,
     createdAt: c.createdAt,
   };
+}
+
+function parseImageDataUrl(raw: string): { mime: string; base64: string } | null {
+  const s = raw.trim();
+  // data:image/png;base64,AAAA
+  const m = s.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return null;
+  const mime = m[1].toLowerCase();
+  const base64 = m[2];
+  const allowed = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"]);
+  if (!allowed.has(mime)) return null;
+  // Rough size limit: base64 chars * 3/4 ≈ bytes. Cap around 220KB.
+  if (base64.length > 300_000) return null;
+  return { mime, base64 };
 }
 
 function labelStore(c: BotRow): string {
@@ -85,6 +106,7 @@ export async function GET(req: NextRequest) {
          website_description AS websiteDescription, website_content AS websiteContent,
          products_json AS productsJson, personality, language, guard_rails AS guardRails,
          widget_accent_color AS widgetAccentColor,
+         widget_logo_mime AS widgetLogoMime, widget_logo_base64 AS widgetLogoBase64,
          is_active AS isActive, created_at AS createdAt
          FROM chatbots WHERE user_id = ? ORDER BY created_at DESC`,
         [auth.userId]
@@ -166,6 +188,17 @@ export async function PATCH(req: NextRequest) {
     const name = typeof body.name === "string" ? body.name.trim() : null;
     const language = typeof body.language === "string" ? body.language.trim().slice(0, 20) : null;
     const guardRails = typeof body.guardRails === "string" ? body.guardRails.trim() : null;
+    const widgetLogoDataUrl =
+      typeof (body as { widgetLogoDataUrl?: unknown }).widgetLogoDataUrl === "string"
+        ? ((body as { widgetLogoDataUrl: string }).widgetLogoDataUrl || "").trim()
+        : null;
+    const widgetLogoParsed = widgetLogoDataUrl ? parseImageDataUrl(widgetLogoDataUrl) : null;
+    if (widgetLogoDataUrl !== null && widgetLogoDataUrl !== "" && !widgetLogoParsed) {
+      return NextResponse.json(
+        { error: "Invalid logo. Upload a small PNG/JPEG/WebP/SVG (max ~220KB)." },
+        { status: 400 }
+      );
+    }
 
     let widgetAccentColorUpdate: string | null | undefined = undefined;
     if (Object.prototype.hasOwnProperty.call(body, "widgetAccentColor")) {
@@ -231,6 +264,13 @@ export async function PATCH(req: NextRequest) {
       updates.push("widget_accent_color = ?");
       values.push(widgetAccentColorUpdate);
     }
+    if (widgetLogoDataUrl !== null) {
+      // Allow clearing by sending empty string.
+      updates.push("widget_logo_mime = ?");
+      values.push(widgetLogoParsed ? widgetLogoParsed.mime : null);
+      updates.push("widget_logo_base64 = ?");
+      values.push(widgetLogoParsed ? widgetLogoParsed.base64 : null);
+    }
     if (updates.length === 0) {
       await conn.end();
       return NextResponse.json({ chatbot: null });
@@ -241,7 +281,13 @@ export async function PATCH(req: NextRequest) {
     } catch (err: unknown) {
       const e = err as { code?: string };
       if (e?.code === "ER_BAD_FIELD_ERROR") {
-        const strippable = ["widget_accent_color = ?", "guard_rails = ?", "language = ?"];
+        const strippable = [
+          "widget_accent_color = ?",
+          "guard_rails = ?",
+          "language = ?",
+          "widget_logo_mime = ?",
+          "widget_logo_base64 = ?",
+        ];
         for (const col of strippable) {
           const idx = updates.indexOf(col);
           if (idx !== -1) {

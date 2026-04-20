@@ -34,7 +34,8 @@ function AppShellInner({ children, hideSidebar }: { children: React.ReactNode; h
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideSidebar = HIDE_SIDEBAR_ROUTES.some((p) => pathname.startsWith(p));
+  const path = pathname ?? "";
+  const hideSidebar = HIDE_SIDEBAR_ROUTES.some((p) => path.startsWith(p));
   const sidebarVisible = !hideSidebar;
 
   return (

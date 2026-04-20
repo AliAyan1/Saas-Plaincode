@@ -30,7 +30,7 @@ const COPY: Record<string, { title: string; blurb: string; charge: string; cta: 
 
 function PaymentInner() {
   const searchParams = useSearchParams();
-  const planParam = (searchParams.get("plan") || "growth").toLowerCase();
+  const planParam = ((searchParams?.get("plan") || "growth") as string).toLowerCase();
   const plan = planParam === "pro" || planParam === "agency" ? planParam : "growth";
   const copy = COPY[plan] ?? COPY.growth;
 
