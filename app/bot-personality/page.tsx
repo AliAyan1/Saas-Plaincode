@@ -259,7 +259,7 @@ export default function BotPersonalityPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-300">Logo (paid plans)</p>
+              <p className="text-xs font-medium text-slate-300">Logo</p>
               <div className="flex items-center gap-3">
                 <input
                   type="file"
