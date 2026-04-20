@@ -48,6 +48,18 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
   const [ticketResolved, setTicketResolved] = useState(false);
   const [embedAccent, setEmbedAccent] = useState<string | null>(null);
 
+  // Persist conversation id so a page refresh keeps the same conversation context.
+  useEffect(() => {
+    if (!chatbotId) return;
+    const key = `plainbot-conversation-id:${chatbotId}`;
+    try {
+      const saved = window.localStorage.getItem(key);
+      if (saved && typeof saved === "string") conversationIdRef.current = saved;
+    } catch {
+      /* ignore */
+    }
+  }, [chatbotId]);
+
   useEffect(() => {
     if (!embed || !chatbotId) {
       setEmbedAccent(null);
@@ -236,7 +248,14 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
       }
 
       const convId = res.headers.get("X-Conversation-Id");
-      if (convId) conversationIdRef.current = convId;
+      if (convId) {
+        conversationIdRef.current = convId;
+        try {
+          if (chatbotId) window.localStorage.setItem(`plainbot-conversation-id:${chatbotId}`, convId);
+        } catch {
+          /* ignore */
+        }
+      }
       const ref = res.headers.get("X-Ticket-Ref");
       if (ref) setCurrentTicketRef(ref);
 

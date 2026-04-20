@@ -14,6 +14,63 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+async function enforceGuardRailsOrRewrite(args: {
+  guardRailsText: string;
+  question: string;
+  draftAnswer: string;
+}): Promise<{ answer: string; rewritten: boolean }> {
+  const guard = (args.guardRailsText || "").trim();
+  const draft = (args.draftAnswer || "").trim();
+  if (!guard) return { answer: draft, rewritten: false };
+  if (!draft) return { answer: draft, rewritten: false };
+
+  // Ask the model to verify compliance with the store owner's rules and rewrite if needed.
+  // We intentionally request JSON so it is easy to parse and deterministic.
+  const checkerSystem = `You are a strict compliance checker for a customer-support chatbot.
+
+Your job:
+- Compare the draft answer against the STORE OWNER RULES.
+- If the draft violates ANY rule, rewrite it so it fully complies.
+- Keep the rewrite concise, well-formatted, and aligned with the draft intent.
+
+Return ONLY valid JSON with this exact schema:
+{
+  "action": "ok" | "rewrite",
+  "rewritten": string
+}`;
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: modelFromEnv,
+      temperature: 0,
+      max_tokens: 450,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: checkerSystem },
+        {
+          role: "user",
+          content: `STORE OWNER RULES:\n${guard}\n\nUSER QUESTION:\n${args.question}\n\nDRAFT ANSWER:\n${draft}`,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content || "{}";
+    let parsed: { action?: "ok" | "rewrite"; rewritten?: string } = {};
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = {};
+    }
+    if (parsed.action === "rewrite" && typeof parsed.rewritten === "string" && parsed.rewritten.trim()) {
+      return { answer: parsed.rewritten.trim(), rewritten: true };
+    }
+    return { answer: draft, rewritten: false };
+  } catch {
+    // If the checker fails, fall back to the draft answer rather than erroring.
+    return { answer: draft, rewritten: false };
+  }
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -131,6 +188,7 @@ export async function POST(req: NextRequest) {
     let persistMessages = false;
     let ticketRef: string | null = null;
     let botUserId: string | null = null;
+    let userMsgId: string | null = null;
 
     if (chatbotId) {
       const conn = await getDbConnection();
@@ -263,7 +321,7 @@ export async function POST(req: NextRequest) {
           [randomUUID(), botUserId, period]
         );
       }
-      const userMsgId = randomUUID();
+      userMsgId = randomUUID();
       await conn2.execute(
         "INSERT INTO chat_messages (id, conversation_id, role, content) VALUES (?, ?, 'user', ?)",
         [userMsgId, conversationId, question]
@@ -351,140 +409,178 @@ ${websiteContext}
 
 === END WEBSITE DATA ===`.trim();
 
+    // Conversation memory: include recent messages from this conversation so the model can
+    // remember context (name/order id/etc.) within the same chat session.
+    const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
+    if (persistMessages && conversationId) {
+      try {
+        const conn = await getDbConnection();
+        const maxHistoryMessages = 14; // keep prompt small + focused
+        let rows: { role: "user" | "assistant"; content: string }[] = [];
+        if (userMsgId) {
+          const [r] = await conn.execute(
+            "SELECT role, content FROM chat_messages WHERE conversation_id = ? AND id <> ? ORDER BY created_at DESC LIMIT ?",
+            [conversationId, userMsgId, maxHistoryMessages]
+          );
+          rows = (r as { role: "user" | "assistant"; content: string }[]) || [];
+        } else {
+          const [r] = await conn.execute(
+            "SELECT role, content FROM chat_messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT ?",
+            [conversationId, maxHistoryMessages]
+          );
+          rows = (r as { role: "user" | "assistant"; content: string }[]) || [];
+        }
+        await conn.end();
+
+        // We selected DESC for speed; reverse to chronological.
+        rows
+          .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim().length > 0)
+          .reverse()
+          .forEach((m) => historyMessages.push({ role: m.role, content: m.content.trim().slice(0, 2000) }));
+      } catch {
+        /* ignore memory fetch errors */
+      }
+    }
+
     const openaiTimeoutMs = 60_000;
     const openaiAbort = new AbortController();
     const openaiTimeout = setTimeout(() => openaiAbort.abort(), openaiTimeoutMs);
 
+    // Generate full answer first so we can enforce guard-rails BEFORE streaming to the user.
     const completion = await client.chat.completions.create(
       {
         model: modelFromEnv,
-        messages: [
-          { role: "system", content: fullPrompt },
-          { role: "user", content: question },
-        ],
+        messages: [{ role: "system", content: fullPrompt }, ...historyMessages, { role: "user", content: question }],
         temperature: 0.2,
         max_tokens: 380,
-        stream: true,
-        stream_options: { include_usage: false },
       },
       { signal: openaiAbort.signal }
     );
+    clearTimeout(openaiTimeout);
 
+    const draftAnswer = (completion.choices[0]?.message?.content || "").trim();
+    const { answer: checkedAnswer } = await enforceGuardRailsOrRewrite({
+      guardRailsText,
+      question,
+      draftAnswer,
+    });
+
+    const finalRaw = checkedAnswer || draftAnswer || "";
+    const hasForwardMarker = /\[FORWARD_TO_SUPPORT\]/i.test(finalRaw);
+    const assistantContent = finalRaw.replace(/\s*\[FORWARD_TO_SUPPORT\]\s*$/i, "").trim();
+
+    // Persist assistant message (and forward-to-support logic) before responding.
+    if (persistMessages && conversationId && assistantContent) {
+      try {
+        const conn = await getDbConnection();
+        const assistantMsgId = randomUUID();
+        await conn.execute(
+          "INSERT INTO chat_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)",
+          [assistantMsgId, conversationId, assistantContent]
+        );
+        if (hasForwardMarker && botUserId) {
+          const [existingFwd] = await conn.execute(
+            "SELECT id FROM forwarded_conversations WHERE conversation_id = ? LIMIT 1",
+            [conversationId]
+          );
+          const alreadyForwarded = Array.isArray(existingFwd) && existingFwd.length > 0;
+          if (!alreadyForwarded) {
+            const [msgRows] = await conn.execute(
+              "SELECT role, content FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC",
+              [conversationId]
+            );
+            const msgs = (msgRows as { role: string; content: string }[]) || [];
+            const conversationText = msgs
+              .map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`)
+              .join("\n");
+            const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+            const preview = (lastUser?.content || question || "Conversation").slice(0, 500);
+            const customer = "Chat user";
+            const ticketId = randomUUID();
+            const ticketRefVal = "TK-" + ticketId.slice(0, 8).toUpperCase();
+            await conn.execute(
+              `INSERT INTO tickets (id, user_id, conversation_id, ticket_ref, type, customer, query_preview, status)
+                     VALUES (?, ?, ?, ?, 'forwarded_email', ?, ?, 'open')`,
+              [ticketId, botUserId, conversationId, ticketRefVal, customer, preview]
+            );
+            await conn.execute(
+              `INSERT INTO forwarded_conversations (id, user_id, conversation_id, customer, customer_email, preview, forwarded_as, ticket_ref)
+                     VALUES (?, ?, ?, ?, NULL, ?, 'email', ?)`,
+              [randomUUID(), botUserId, conversationId, customer, preview, ticketRefVal]
+            );
+            const [userRows] = await conn.execute("SELECT forward_email FROM users WHERE id = ?", [botUserId]);
+            const forwardEmail = (userRows as { forward_email?: string }[])[0]?.forward_email ?? null;
+            if (forwardEmail && process.env.RESEND_API_KEY) {
+              const emailBody = [
+                "Forwarded conversation (AI could not handle — needs human support)",
+                `Ticket: #${ticketRefVal}`,
+                `Customer: ${customer}`,
+                "",
+                `Preview: ${preview}`,
+                "",
+                conversationText ? `Full conversation:\n${conversationText}` : "",
+              ]
+                .filter(Boolean)
+                .join("\n");
+              const subject = `Forwarded Ticket #${ticketRefVal} [conv:${conversationId}] ${preview.slice(0, 40)}${
+                preview.length > 40 ? "…" : ""
+              }`;
+              const resendAbort = new AbortController();
+              const resendTimeout = setTimeout(() => resendAbort.abort(), 60_000);
+              try {
+                const res = await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+                  },
+                  body: JSON.stringify({
+                    from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+                    to: forwardEmail,
+                    subject,
+                    text: emailBody,
+                  }),
+                  signal: resendAbort.signal,
+                });
+                clearTimeout(resendTimeout);
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  console.error("Resend send failed:", res.status, err);
+                }
+              } catch (e) {
+                clearTimeout(resendTimeout);
+                console.error("Resend send failed:", e);
+              }
+            } else if (forwardEmail) {
+              console.log("[Forward to email] Forward email set; RESEND_API_KEY missing — email not sent.");
+            }
+          }
+          await conn.execute("UPDATE conversations SET status = 'forwarded' WHERE id = ?", [conversationId]);
+        } else {
+          await conn.execute(
+            "UPDATE tickets SET status = 'resolved', outcome = 'Resolved by AI' WHERE conversation_id = ?",
+            [conversationId]
+          );
+        }
+        await conn.end();
+      } catch (err) {
+        console.error("Failed to persist assistant message:", err);
+      }
+    }
+
+    // Stream the final, already-checked answer to the client.
     const encoder = new TextEncoder();
-    const chunks: string[] = [];
-
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          let firstChunkSent = false;
-          for await (const part of completion) {
-            const delta = part.choices[0]?.delta?.content || "";
-            if (!delta) continue;
-            chunks.push(delta);
-            controller.enqueue(encoder.encode(delta));
-            if (!firstChunkSent) {
-              firstChunkSent = true;
-              await new Promise((r) => setTimeout(r, 0));
-            }
-          }
-          clearTimeout(openaiTimeout);
-          if (persistMessages && conversationId && chunks.length > 0) {
-            const rawContent = chunks.join("");
-            const hasForwardMarker = /\[FORWARD_TO_SUPPORT\]/i.test(rawContent);
-            const assistantContent = rawContent.replace(/\s*\[FORWARD_TO_SUPPORT\]\s*$/i, "").trim();
-            try {
-              const conn = await getDbConnection();
-              const assistantMsgId = randomUUID();
-              await conn.execute(
-                "INSERT INTO chat_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)",
-                [assistantMsgId, conversationId, assistantContent]
-              );
-              if (hasForwardMarker && botUserId) {
-                const [existingFwd] = await conn.execute(
-                  "SELECT id FROM forwarded_conversations WHERE conversation_id = ? LIMIT 1",
-                  [conversationId]
-                );
-                const alreadyForwarded = Array.isArray(existingFwd) && existingFwd.length > 0;
-                if (!alreadyForwarded) {
-                  const [msgRows] = await conn.execute(
-                    "SELECT role, content FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC",
-                    [conversationId]
-                  );
-                  const msgs = (msgRows as { role: string; content: string }[]) || [];
-                  const conversationText = msgs.map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`).join("\n");
-                  const lastUser = [...msgs].reverse().find((m) => m.role === "user");
-                  const preview = (lastUser?.content || question || "Conversation").slice(0, 500);
-                  const customer = "Chat user";
-                  const ticketId = randomUUID();
-                  const ticketRefVal = "TK-" + ticketId.slice(0, 8).toUpperCase();
-                  await conn.execute(
-                    `INSERT INTO tickets (id, user_id, conversation_id, ticket_ref, type, customer, query_preview, status)
-                     VALUES (?, ?, ?, ?, 'forwarded_email', ?, ?, 'open')`,
-                    [ticketId, botUserId, conversationId, ticketRefVal, customer, preview]
-                  );
-                  await conn.execute(
-                    `INSERT INTO forwarded_conversations (id, user_id, conversation_id, customer, customer_email, preview, forwarded_as, ticket_ref)
-                     VALUES (?, ?, ?, ?, NULL, ?, 'email', ?)`,
-                    [randomUUID(), botUserId, conversationId, customer, preview, ticketRefVal]
-                  );
-                  const [userRows] = await conn.execute("SELECT forward_email FROM users WHERE id = ?", [botUserId]);
-                  const forwardEmail = (userRows as { forward_email?: string }[])[0]?.forward_email ?? null;
-                  if (forwardEmail && process.env.RESEND_API_KEY) {
-                    const emailBody = [
-                      "Forwarded conversation (AI could not handle — needs human support)",
-                      `Ticket: #${ticketRefVal}`,
-                      `Customer: ${customer}`,
-                      "",
-                      `Preview: ${preview}`,
-                      "",
-                      conversationText ? `Full conversation:\n${conversationText}` : "",
-                    ].filter(Boolean).join("\n");
-                    const subject = `Forwarded Ticket #${ticketRefVal} [conv:${conversationId}] ${preview.slice(0, 40)}${preview.length > 40 ? "…" : ""}`;
-                    const resendAbort = new AbortController();
-                    const resendTimeout = setTimeout(() => resendAbort.abort(), 60_000);
-                    try {
-                      const res = await fetch("https://api.resend.com/emails", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-                        },
-                        body: JSON.stringify({
-                          from: process.env.EMAIL_FROM || "onboarding@resend.dev",
-                          to: forwardEmail,
-                          subject,
-                          text: emailBody,
-                        }),
-                        signal: resendAbort.signal,
-                      });
-                      clearTimeout(resendTimeout);
-                      if (!res.ok) {
-                        const err = await res.json().catch(() => ({}));
-                        console.error("Resend send failed:", res.status, err);
-                      }
-                    } catch (e) {
-                      clearTimeout(resendTimeout);
-                      console.error("Resend send failed:", e);
-                    }
-                  } else if (forwardEmail) {
-                    console.log("[Forward to email] Forward email set; RESEND_API_KEY missing — email not sent.");
-                  }
-                }
-                await conn.execute("UPDATE conversations SET status = 'forwarded' WHERE id = ?", [conversationId]);
-              } else {
-                await conn.execute(
-                  "UPDATE tickets SET status = 'resolved', outcome = 'Resolved by AI' WHERE conversation_id = ?",
-                  [conversationId]
-                );
-              }
-              await conn.end();
-            } catch (err) {
-              console.error("Failed to persist assistant message:", err);
-            }
+          const text = assistantContent || "";
+          const chunkSize = 120;
+          for (let i = 0; i < text.length; i += chunkSize) {
+            controller.enqueue(encoder.encode(text.slice(i, i + chunkSize)));
+            // micro-yield for UI responsiveness
+            await new Promise((r) => setTimeout(r, 0));
           }
         } catch (err) {
-          clearTimeout(openaiTimeout);
-          console.error("Streaming error:", err);
           controller.error(err);
           return;
         }

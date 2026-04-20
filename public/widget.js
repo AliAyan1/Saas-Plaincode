@@ -10,6 +10,11 @@
   if (!botId || !base) return;
 
   var conversationId = null;
+  var conversationStorageKey = "plainbot-conversation-id:" + botId;
+  try {
+    var savedCid = window.localStorage && window.localStorage.getItem(conversationStorageKey);
+    if (savedCid && typeof savedCid === "string") conversationId = savedCid;
+  } catch (e) {}
   var open = false;
   var root = null;
   var panel = null;
@@ -204,6 +209,9 @@
           var cid = res.headers.get("X-Conversation-Id");
           if (cid) {
             conversationId = cid;
+            try {
+              if (window.localStorage) window.localStorage.setItem(conversationStorageKey, cid);
+            } catch (e) {}
             if (open) startSupportReplyPoll();
           }
           if (!res.ok) {
