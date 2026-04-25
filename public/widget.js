@@ -245,14 +245,41 @@
           var decoder = new TextDecoder();
           var last = messagesDiv.querySelector(".ecom-widget-msg.assistant:last-child");
           if (last) last.textContent = "";
+          var streamBuf = "";
+          function escapeHtmlW(s) {
+            return String(s)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+          }
+          function linkifyForWidget(raw) {
+            var e = escapeHtmlW(raw);
+            return e.replace(
+              /(https?:\/\/[^\s<]+?)(?=[\s<]|$)/g,
+              function (u) {
+                var href = u.replace(/[.,;:!?)\]']+$/g, "");
+                return (
+                  '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;word-break:break-all;">' +
+                  u +
+                  "</a>"
+                );
+              }
+            );
+          }
           var reader = res.body.getReader();
           function read() {
             reader.read().then(function (r) {
               if (r.done) {
+                if (last && streamBuf) {
+                  last.innerHTML = linkifyForWidget(streamBuf);
+                }
                 send.disabled = false;
                 return;
               }
-              if (last) last.textContent += decoder.decode(r.value, { stream: true });
+              var chunk = decoder.decode(r.value, { stream: true });
+              streamBuf += chunk;
+              if (last) last.textContent = streamBuf;
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
               read();
             });

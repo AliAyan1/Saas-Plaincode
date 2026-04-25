@@ -31,15 +31,23 @@ export default function CreateBotPage() {
     Promise.all([
       fetch("/api/users/store-type").then((r) => r.json()),
       fetch("/api/users/forward-email").then((r) => r.json()),
+      fetch("/api/chatbots/me").then((r) => r.json()),
     ])
-      .then(([storeData, emailData]) => {
+      .then(([storeData, emailData, botData]) => {
         const st = storeData.storeType || null;
         setStoreType(st);
         if (!st) {
           router.replace("/onboarding/store-type");
           return;
         }
-        if (!emailData.forwardEmail) router.replace("/onboarding/forward-email");
+        const hasBots =
+          botData &&
+          typeof botData === "object" &&
+          Array.isArray((botData as { chatbots?: unknown }).chatbots) &&
+          (botData as { chatbots: unknown[] }).chatbots.length > 0;
+        if (!emailData.forwardEmail && !hasBots) {
+          router.replace("/onboarding/forward-email");
+        }
       })
       .catch(() => setStoreType("custom"))
       .finally(() => setStoreTypeLoading(false));

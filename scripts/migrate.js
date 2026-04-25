@@ -331,6 +331,31 @@ async function run() {
       console.log("chatbot_knowledge_chunks already exists, skip.");
     }
 
+    // password_resets (forgot-password flow)
+    const [prTables] = await conn.execute(
+      "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'password_resets'",
+      [database]
+    );
+    if (!Array.isArray(prTables) || prTables.length === 0) {
+      console.log("Creating password_resets...");
+      await conn.execute(`
+        CREATE TABLE password_resets (
+          id              CHAR(36) PRIMARY KEY,
+          user_id         CHAR(36) NOT NULL,
+          token_hash      VARCHAR(64) NOT NULL,
+          expires_at      TIMESTAMP NOT NULL,
+          used_at         TIMESTAMP NULL DEFAULT NULL,
+          created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_password_resets_user (user_id),
+          INDEX idx_password_resets_hash (token_hash),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB
+      `);
+      console.log("  OK");
+    } else {
+      console.log("password_resets already exists, skip.");
+    }
+
     // chatbots.language (response language for the chatbot)
     if (!(await hasColumn(conn, "chatbots", "language"))) {
       console.log("Adding chatbots.language...");

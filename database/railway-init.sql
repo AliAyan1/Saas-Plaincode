@@ -18,6 +18,19 @@ CREATE TABLE IF NOT EXISTS users (
   INDEX idx_users_store_type (store_type)
 );
 
+-- PASSWORD_RESETS (forgot-password flow; token_hash = SHA-256 hex of token)
+CREATE TABLE IF NOT EXISTS password_resets (
+  id              CHAR(36) PRIMARY KEY,
+  user_id         CHAR(36) NOT NULL,
+  token_hash      VARCHAR(64) NOT NULL,
+  expires_at      TIMESTAMP NOT NULL,
+  used_at         TIMESTAMP NULL DEFAULT NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_resets_user (user_id),
+  INDEX idx_password_resets_hash (token_hash),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- CHATBOTS
 CREATE TABLE IF NOT EXISTS chatbots (
   id              CHAR(36) PRIMARY KEY,

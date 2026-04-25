@@ -1,20 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import Card from "@/components/Card";
 import Logo from "@/components/Logo";
 import { resetBotStorageForNewAccount } from "@/lib/bot-local-storage";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetBanner, setResetBanner] = useState(false);
+  useEffect(() => {
+    if (searchParams?.get("reset") === "1") setResetBanner(true);
+  }, [searchParams]);
 
 
   const handleSubmit = async (e: FormEvent) => {
@@ -100,6 +105,11 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {resetBanner && (
+            <p className="mb-4 text-sm text-emerald-300/90 bg-emerald-950/30 border border-emerald-800/40 rounded-lg px-3 py-2">
+              Your password was updated. Log in with your new password.
+            </p>
+          )}
           <form className="space-y-4" onSubmit={handleSubmit}>
             <Input
               label="Email Address"
@@ -164,5 +174,17 @@ export default function LoginPage() {
         © {new Date().getFullYear()} Plainbot. All rights reserved.
       </footer>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-black text-slate-400">Loading…</div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

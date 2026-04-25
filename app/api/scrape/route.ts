@@ -94,7 +94,7 @@ function parsePriceFromText(text: string): string | null {
 }
 
 function extractProductsFromHomepage($: ReturnType<typeof load>): { name: string; price?: string }[] {
-  const products: { name: string; price?: string }[] = [];
+  const products: { name: string; price?: string; url?: string }[] = [];
   const seenNames = new Set<string>();
 
   // 1) Schema.org Product: get name + price from same block
@@ -363,9 +363,10 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.warn("appendInfoPolicyPages (no store type):", e);
       }
-      let products: { name: string; price?: string }[] = result.products.map((p) => ({
+      let products: { name: string; price?: string; url?: string }[] = result.products.map((p) => ({
         name: p.name,
         price: p.price,
+        url: p.url,
       }));
       if (products.length === 0) {
         try {
@@ -393,7 +394,7 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.warn("appendInfoPolicyPages (store type):", e);
         }
-        const products = result.products.map((p) => ({ name: p.name, price: p.price }));
+        const products = result.products.map((p) => ({ name: p.name, price: p.price, url: p.url }));
         return NextResponse.json({
           title: result.title,
           description: result.description,

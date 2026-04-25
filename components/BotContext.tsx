@@ -43,7 +43,7 @@ export interface ScrapedData {
   title: string;
   description: string;
   content: string;
-  products?: { name: string; price?: string }[];
+  products?: { name: string; price?: string; url?: string }[];
   /** AI guard rails from server — mirrored for UI; chat API loads from DB when chatbotId is sent. */
   guardRails?: string;
 }

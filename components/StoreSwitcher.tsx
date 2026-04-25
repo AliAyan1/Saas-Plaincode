@@ -1,15 +1,47 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useBot } from "@/components/BotContext";
 
 export default function StoreSwitcher() {
   const { stores, chatbotId, selectStore, storeLimit } = useBot();
+  const [removing, setRemoving] = useState(false);
 
   if (stores.length === 0) return null;
 
   const atCap = storeLimit !== null && stores.length >= storeLimit;
   const limitLabel = storeLimit === null ? "∞" : String(storeLimit);
+
+  const handleRemoveStore = async () => {
+    if (!chatbotId) return;
+    if (
+      !window.confirm(
+        "Remove this store from your account? The chatbot and its training data for this store will be deleted. You can connect a new store from Add store."
+      )
+    ) {
+      return;
+    }
+    setRemoving(true);
+    try {
+      const r = await fetch(`/api/chatbots/${encodeURIComponent(chatbotId)}`, { method: "DELETE" });
+      const d = (await r.json().catch(() => ({}))) as { error?: string; remainingChatbotIds?: string[] };
+      if (!r.ok) {
+        throw new Error(d.error || "Could not remove this store.");
+      }
+      const next = d.remainingChatbotIds;
+      if (Array.isArray(next) && next.length > 0) {
+        await selectStore(next[0]);
+        window.location.reload();
+      } else {
+        window.location.href = "/create-bot";
+      }
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   return (
     <div className="flex min-w-0 max-w-[min(100vw-12rem,280px)] flex-col gap-1 sm:max-w-[320px]">
@@ -44,6 +76,16 @@ export default function StoreSwitcher() {
           <Link href="/pricing" className="text-primary-400 hover:text-primary-300">
             Upgrade for more
           </Link>
+        )}
+        {chatbotId && (
+          <button
+            type="button"
+            onClick={() => void handleRemoveStore()}
+            disabled={removing}
+            className="text-rose-400/90 hover:text-rose-300 disabled:opacity-50"
+          >
+            {removing ? "Removing…" : "Remove this store"}
+          </button>
         )}
       </div>
     </div>

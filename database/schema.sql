@@ -29,6 +29,19 @@ CREATE TABLE users (
   INDEX idx_users_store_type (store_type)
 );
 
+-- Password reset tokens (one-time, emailed link)
+CREATE TABLE IF NOT EXISTS password_resets (
+  id              CHAR(36) PRIMARY KEY,
+  user_id         CHAR(36) NOT NULL,
+  token_hash      VARCHAR(64) NOT NULL,
+  expires_at      TIMESTAMP NOT NULL,
+  used_at         TIMESTAMP NULL DEFAULT NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_resets_user (user_id),
+  INDEX idx_password_resets_hash (token_hash),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ============================================
 -- CHATBOTS
 -- One user can have multiple chatbots

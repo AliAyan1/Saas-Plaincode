@@ -180,11 +180,15 @@ export async function reindexChatbot(
   let productLines = "";
   try {
     const parsed = productsJson ? JSON.parse(productsJson) : [];
-    const arr: { name?: string; price?: string }[] = Array.isArray(parsed) ? parsed : parsed?.products || [];
+    const arr: { name?: string; price?: string; url?: string }[] = Array.isArray(parsed) ? parsed : parsed?.products || [];
     if (Array.isArray(arr) && arr.length > 0) {
       productLines = arr
         .slice(0, 200)
-        .map((p) => (p.name ? `${p.name}${p.price ? ` — ${p.price}` : ""}` : ""))
+        .map((p) =>
+          p.name
+            ? `${p.name}${p.price ? ` — ${p.price}` : ""}${p.url ? ` ${p.url}` : ""}`
+            : ""
+        )
         .filter(Boolean)
         .join("\n")
         .slice(0, MAX_CATALOG_CHARS);

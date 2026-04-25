@@ -24,12 +24,19 @@ type BotRow = {
   createdAt: Date;
 };
 
-function parseProducts(productsJson: string | null): { name: string }[] {
+function parseProducts(productsJson: string | null): { name: string; price?: string; url?: string }[] {
   if (!productsJson) return [];
   try {
     const parsed = JSON.parse(productsJson);
     const arr = Array.isArray(parsed) ? parsed : parsed?.products ? parsed.products : [];
-    return Array.isArray(arr) ? arr : [];
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((p: { name?: string; price?: string; url?: string }) => ({
+        name: typeof p?.name === "string" ? p.name : "",
+        ...(typeof p?.price === "string" && p.price ? { price: p.price } : {}),
+        ...(typeof p?.url === "string" && p.url.trim() ? { url: p.url.trim() } : {}),
+      }))
+      .filter((p) => p.name.length > 0);
   } catch {
     return [];
   }

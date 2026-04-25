@@ -90,7 +90,7 @@ function buildWebsiteContext(
     title?: string;
     description?: string;
     content?: string;
-    products?: { name?: string; price?: string }[];
+    products?: { name?: string; price?: string; url?: string }[];
     uploadedDocsText?: string;
   } | null,
   opts?: { ragPassages?: string[] }
@@ -105,7 +105,7 @@ function buildWebsiteContext(
       : "=== STORE KNOWLEDGE (use this as your only source of truth for this store) ==="
   );
   if (scrapedData.title) parts.push(`Store name/title: ${scrapedData.title}`);
-  if (scrapedData.url) parts.push(`Store URL (for internal reference only; do not include URLs in your replies): ${scrapedData.url.replace(/\/$/, "")}`);
+  if (scrapedData.url) parts.push(`Store base URL (use for building links to pages on this site; must match this host): ${scrapedData.url.replace(/\/$/, "")}`);
   if (scrapedData.description) parts.push(`Short description: ${scrapedData.description}`);
 
   const hasUploadedDocs = scrapedData.uploadedDocsText && scrapedData.uploadedDocsText.trim().length > 0;
@@ -140,12 +140,20 @@ function buildWebsiteContext(
         ? "RETRIEVED PASSAGES, PRODUCT CATALOG, or the short description"
         : "WEBSITE CONTENT below";
       parts.push(
-        `When asked about PRICE or PRICE RANGE: use any prices mentioned in ${priceSrc}. If none, say we don't have price details in this chat and they can check our website. Do not include URLs in your reply.`
+        `When asked about PRICE or PRICE RANGE: use any prices mentioned in ${priceSrc}. If none, say we don't have price details in this chat. You may add one product page link from PRODUCT & PAGE URLs if it helps.`
       );
     }
+    parts.push(
+      "\nYou may add exact page links only when it helps (e.g. “see this product”, policy pages, contact). Use markdown [link text](https://...) or a plain https URL. Most replies should have no links. Only use URLs that appear in this product list, RETRIEVED PASSAGES, or the store base URL (same hostname)."
+    );
     scrapedData.products.forEach((p, i) => {
       const name = p.name?.trim();
-      if (name) parts.push(`  ${i + 1}. ${name}${p.price ? ` — ${p.price}` : ""}`);
+      if (name) {
+        const u = p.url?.trim();
+        parts.push(
+          `  ${i + 1}. ${name}${p.price ? ` — ${p.price}` : ""}${u ? ` | ${u}` : ""}`
+        );
+      }
     });
   } else if (!hasUploadedDocs && !useRag) {
     parts.push("\nPRODUCT CATALOG: (no product list in this data — use store title, description, and WEBSITE CONTENT or UPLOADED DOCUMENTS above to describe what the store sells. If WEBSITE CONTENT or UPLOADED DOCUMENTS mention a number of products or a list, use that to answer 'how many products?' when possible.)");
@@ -217,7 +225,7 @@ export async function POST(req: NextRequest) {
       title?: string;
       description?: string;
       content?: string;
-      products?: { name?: string; price?: string }[];
+      products?: { name?: string; price?: string; url?: string }[];
       uploadedDocsText?: string;
     } | null;
 
@@ -417,9 +425,10 @@ FORMATTING AND LENGTH (chat widget):
 
 Your knowledge base is limited to the WEBSITE DATA below. Provide accurate, helpful responses based only on that data.
 
-VOICE AND URL RULE:
+VOICE AND LINKS (URLs):
 - Always speak as the store: "We offer...", "On our website we have...", "We sell these types of...". Describe what we offer and what we have.
-- Do NOT include or write URLs at the end of your responses. Do not say "visit https://..." or paste the website link. Just describe what we offer (products, types, prices, policies) in your own words without giving a URL.
+- You MAY include 0–2 links when it truly helps the customer (e.g. a specific product page, shipping policy, contact page) using only URLs that appear in the WEBSITE DATA (product lines, store base URL, or retrieved passages). Use markdown [descriptive label](https://full-url) or a plain https URL. Do not put links in every message—greetings, simple yes/no, and most policy summaries need no link.
+- Never invent or guess a path; if no URL is in the data, describe in words only (no “visit our site” with a made-up link).
 
 PRIORITIES (in order): 1. Clear, scannable formatting  2. Accuracy  3. Brevity  4. Relevance
 
@@ -427,18 +436,18 @@ RESPONSE RULES:
 - Never fabricate missing information (e.g. do not invent product names or prices that are not in the data).
 - When the user asks "how many products do you have?" or "how many products?": use the PRODUCT COUNT or count the items in the PRODUCT CATALOG below. Answer in first person (e.g. "We have X products."). Do NOT say "not available" if the catalog lists any products.
 - When the user asks about product TYPES, CATEGORIES, or what we sell: answer in first person (e.g. "We offer...", "On our website we have...") and infer from the PRODUCT CATALOG and WEBSITE CONTENT. Summarize types/categories. Do not say "not available" if you can reasonably derive types from the list or content.
-- When the user asks about PRICE or PRICE RANGE: give a rough range in first person (e.g. "Our products are typically in the $X–$Y range"). Use APPROXIMATE PRICE RANGE or prices in the data. Do not end with a URL.
-- Maximize small data: infer types, categories, and price level when possible. Give concise answers. Do not append URLs—just describe what we offer.
+- When the user asks about PRICE or PRICE RANGE: give a rough range in first person (e.g. "Our products are typically in the $X–$Y range"). Use APPROXIMATE PRICE RANGE or prices in the data. A product link is optional and only if a URL exists in the data.
+- Maximize small data: infer types, categories, and price level when possible. Give concise answers. Add links only when useful, not by default.
 - Only if the question asks for something truly not present in the data, say: "This information is not available on our website."
 - Do not speculate about unrelated topics. Do not say "based on the provided content" or mention training data.
 
 INTELLIGENT EXTRACTION:
 - Extract relevant parts from the data; summarize cleanly; remove redundancy.
-- Keep important details: product names, types/categories, prices, features, contact details, policies. Do not include URLs in your reply.
+- Keep important details: product names, types/categories, prices, features, contact details, policies. Optional: include vetted links from the data (see VOICE AND LINKS).
 
 STRUCTURED ANSWERING:
 
-If the question relates to products, types, or price → answer as the store: (1) What we offer (types/categories). (2) Rough price range when you have it. (3) Product names or features when relevant. Do not end with a URL. Use PRODUCT CATALOG and WEBSITE CONTENT below.
+If the question relates to products, types, or price → answer as the store: (1) What we offer (types/categories). (2) Rough price range when you have it. (3) Product names or features when relevant. (4) Add a product page link only if the list includes a URL and it helps. Use PRODUCT CATALOG and WEBSITE DATA below.
 
 If the question relates to services → provide: Service name • What it includes • Who it is for (only from the data).
 

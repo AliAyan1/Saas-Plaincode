@@ -6,7 +6,7 @@ import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 import { planHasPaidConversationTier, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
 import { contrastingForegroundForHex, resolvedWidgetAccentColor } from "@/lib/widget-color";
-import { formatAssistantMessageForDisplay } from "@/lib/format-assistant-message";
+import AssistantMessageContent from "@/components/AssistantMessageContent";
 
 interface ChatPanelProps {
   compact?: boolean;
@@ -28,6 +28,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
     addTicket,
     userPlan,
     chatbotId,
+    setMessages,
   } = useBot();
 
   const [input, setInput] = useState("");
@@ -47,18 +48,80 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
   const [currentTicketRef, setCurrentTicketRef] = useState<string | null>(null);
   const [ticketResolved, setTicketResolved] = useState(false);
   const [embedAccent, setEmbedAccent] = useState<string | null>(null);
+  const [chatHydrated, setChatHydrated] = useState(false);
 
-  // Persist conversation id so a page refresh keeps the same conversation context.
+  // Restore conversation id + messages from the server after refresh (stays in sync with the API)
   useEffect(() => {
-    if (!chatbotId) return;
-    const key = `plainbot-conversation-id:${chatbotId}`;
-    try {
-      const saved = window.localStorage.getItem(key);
-      if (saved && typeof saved === "string") conversationIdRef.current = saved;
-    } catch {
-      /* ignore */
+    if (!chatbotId) {
+      setChatHydrated(true);
+      return;
     }
-  }, [chatbotId]);
+    setChatHydrated(false);
+    const key = `plainbot-conversation-id:${chatbotId}`;
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(key);
+    } catch {
+      setChatHydrated(true);
+      return;
+    }
+    if (!saved) {
+      conversationIdRef.current = null;
+      setChatHydrated(true);
+      return;
+    }
+    conversationIdRef.current = saved;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/conversations/messages?conversationId=${encodeURIComponent(saved!)}&chatbotId=${encodeURIComponent(chatbotId)}`
+        );
+        if (cancelled) return;
+        if (r.ok) {
+          const d = (await r.json()) as { messages?: { id: string; role: "user" | "assistant"; content: string }[] };
+          const list = d.messages;
+          if (Array.isArray(list) && list.length > 0) {
+            setMessages(
+              list.map((m, i) => ({
+                id: m.id || `sync_${i}_${Date.now()}`,
+                role: m.role,
+                content: m.content,
+                createdAt: Date.now() + i,
+              }))
+            );
+          }
+        } else {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            /* */
+          }
+          conversationIdRef.current = null;
+          setMessages([]);
+        }
+      } catch {
+        /* keep local state */
+      } finally {
+        if (!cancelled) setChatHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatbotId, setMessages]);
+
+  const clearChat = () => {
+    clearMessages();
+    if (chatbotId) {
+      try {
+        window.localStorage.removeItem(`plainbot-conversation-id:${chatbotId}`);
+      } catch {
+        /* */
+      }
+    }
+    conversationIdRef.current = null;
+  };
 
   useEffect(() => {
     if (!embed || !chatbotId) {
@@ -75,8 +138,14 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
       .catch(() => setEmbedAccent(resolvedWidgetAccentColor(null)));
   }, [embed, chatbotId]);
 
-  // Initial greeting once we know scraped data / personality
   useEffect(() => {
+    if (messages.length > 0) greetingSentRef.current = true;
+    else greetingSentRef.current = false;
+  }, [messages.length]);
+
+  // Initial greeting (after server hydration so we don't duplicate a thread that already exists)
+  useEffect(() => {
+    if (!chatHydrated) return;
     if (greetingSentRef.current) return;
     if (messages.length > 0) return;
     const company =
@@ -86,7 +155,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
     const greeting = `Hi, I'm your AI assistant for ${company}. How can I help you today?`;
     addMessage({ role: "assistant", content: greeting });
     greetingSentRef.current = true;
-  }, [scrapedData, personality, messages.length, addMessage]);
+  }, [chatHydrated, scrapedData, personality, messages.length, addMessage]);
 
   useEffect(() => {
     if (!endRef.current) return;
@@ -351,7 +420,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
             </div>
             <button
               type="button"
-              onClick={clearMessages}
+              onClick={clearChat}
               className="shrink-0 text-xs text-slate-400 hover:text-slate-100"
             >
               Clear
@@ -382,7 +451,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
               </Link>
               <button
                 type="button"
-                onClick={clearMessages}
+                onClick={clearChat}
                 className="text-xs text-slate-400 hover:text-slate-100"
               >
                 Clear
@@ -497,11 +566,11 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
                       : undefined
                   }
                 >
-                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                    {m.role === "assistant"
-                      ? formatAssistantMessageForDisplay(m.content)
-                      : m.content}
-                  </p>
+                  {m.role === "assistant" ? (
+                    <AssistantMessageContent content={m.content} />
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.content}</p>
+                  )}
                 </div>
               </div>
               {isFirstUserMessage && currentTicketRef && (
