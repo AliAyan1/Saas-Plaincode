@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
-import { useBot } from "@/components/BotContext";
+import { useBot, type Personality } from "@/components/BotContext";
 import { nearLimitConversationThreshold, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/lib/plans";
 import { CUSTOM_PLAN_CALENDLY_URL } from "@/lib/calendly";
 import { shopifyThemeLiquidSnippet, widgetScriptTagHtml } from "@/lib/widget-snippet";
@@ -135,7 +135,7 @@ function DashboardContent() {
                 content: c.websiteContent || "",
                 products: c.products || [],
               });
-              setPersonality(c.personality || "Friendly");
+              setPersonality((c.personality as Personality) || "Friendly");
             }
           }
         } else {
