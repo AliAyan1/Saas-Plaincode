@@ -25,18 +25,51 @@ export async function GET(req: NextRequest) {
     );
     await conn.end();
 
-    type Row = { id: string; conversationId: string; customer: string; preview: string; forwardedAs: string; ticketRef: string | null; replyText: string | null; repliedAt: string | null; createdAt: string };
-    const list = (rows as Row[]).map((r) => ({
-      id: r.id,
-      conversationId: r.conversationId,
-      customer: r.customer,
-      preview: r.preview,
-      forwardedAs: r.forwardedAs,
-      ticketRef: r.ticketRef ?? null,
-      replyText: r.replyText ?? null,
-      repliedAt: r.repliedAt ?? null,
-      createdAt: r.createdAt,
-    }));
+    type Row = {
+      id: string;
+      conversationId: string;
+      customer: string;
+      preview: string;
+      forwardedAs: string;
+      ticketRef: string | null;
+      replyText: string | null;
+      repliedAt: string | null;
+      createdAt: string;
+    };
+
+    const slaFor = (createdAt: string, repliedAt: string | null) => {
+      if (repliedAt) return { slaStatus: "resolved" as const, slaPriority: 0 };
+      const hours = (Date.now() - new Date(createdAt).getTime()) / 3_600_000;
+      if (hours >= 24) return { slaStatus: "overdue" as const, slaPriority: 3 };
+      if (hours >= 12) return { slaStatus: "critical" as const, slaPriority: 2 };
+      if (hours >= 6) return { slaStatus: "high" as const, slaPriority: 1 };
+      return { slaStatus: "waiting" as const, slaPriority: 0 };
+    };
+
+    const list = (rows as Row[]).map((r) => {
+      const sla = slaFor(r.createdAt, r.repliedAt);
+      return {
+        id: r.id,
+        conversationId: r.conversationId,
+        customer: r.customer,
+        preview: r.preview,
+        forwardedAs: r.forwardedAs,
+        ticketRef: r.ticketRef ?? null,
+        replyText: r.replyText ?? null,
+        repliedAt: r.repliedAt ?? null,
+        createdAt: r.createdAt,
+        slaStatus: sla.slaStatus,
+        slaPriority: sla.slaPriority,
+      };
+    });
+
+    list.sort((a, b) => {
+      const openA = a.repliedAt ? 1 : 0;
+      const openB = b.repliedAt ? 1 : 0;
+      if (openA !== openB) return openA - openB;
+      if (a.slaPriority !== b.slaPriority) return b.slaPriority - a.slaPriority;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
 
     return NextResponse.json({ forwarded: list });
   } catch (err) {

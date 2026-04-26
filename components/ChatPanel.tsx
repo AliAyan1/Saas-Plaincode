@@ -8,6 +8,9 @@ import { planHasPaidConversationTier, UNLIMITED_CONVERSATIONS_DISPLAY } from "@/
 import { contrastingForegroundForHex, resolvedWidgetAccentColor } from "@/lib/widget-color";
 import AssistantMessageContent from "@/components/AssistantMessageContent";
 
+const SUPPORT_WAIT_PREFIX = "__SUPPORT_WAIT__\n";
+const SUPPORT_WAIT_TEXT = `${SUPPORT_WAIT_PREFIX}No one is available in chat right this moment. Your request has been sent to our team—they will follow up with you by email when they respond. Feel free to ask anything else here in the meantime.`;
+
 interface ChatPanelProps {
   compact?: boolean;
   /** When true (snippet/embed): hide "Test your ecommerce assistant", conversation count, Dashboard/Integration links. */
@@ -43,6 +46,7 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
   const greetingSentRef = useRef(false);
   const conversationIdRef = useRef<string | null>(null);
   const lastReplyShownRef = useRef<string | null>(null);
+  const waitNoticeLockRef = useRef(false);
   const [supportReplyIds, setSupportReplyIds] = useState<Set<string>>(new Set());
   const [supportReplyMeta, setSupportReplyMeta] = useState<Map<string, { repliedAt: string | null }>>(new Map());
   const [currentTicketRef, setCurrentTicketRef] = useState<string | null>(null);
@@ -112,6 +116,15 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
   }, [chatbotId, setMessages]);
 
   const clearChat = () => {
+    try {
+      const cid = conversationIdRef.current;
+      if (cid && chatbotId) {
+        window.localStorage.removeItem(`plainbot-wait-2m:${chatbotId}:${cid}`);
+      }
+    } catch {
+      /* */
+    }
+    waitNoticeLockRef.current = false;
     clearMessages();
     if (chatbotId) {
       try {
@@ -169,14 +182,20 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
     }
   }, [messages.length]);
 
-  // Poll for support reply when we have a conversation (so customer sees reply in chat)
+  // Poll for support reply + 2-minute “no agent in chat yet” notice (forwarded, no reply)
   useEffect(() => {
     const cid = conversationIdRef.current;
-    if (!cid) return;
+    if (!cid || !chatbotId) return;
+    const waitKey = `plainbot-wait-2m:${chatbotId}:${cid}`;
     const poll = () => {
       fetch(`/api/forwarded/by-conversation?conversationId=${encodeURIComponent(cid)}`)
         .then((r) => r.json())
-        .then((data) => {
+        .then((data: {
+          replyText?: string | null;
+          repliedAt?: string | null;
+          forwardPending?: boolean;
+          forwardedAt?: string | null;
+        }) => {
           if (data.replyText && data.replyText !== lastReplyShownRef.current) {
             lastReplyShownRef.current = data.replyText;
             const id = addMessage({
@@ -187,13 +206,36 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
             setSupportReplyMeta((prev) => new Map(prev).set(id, { repliedAt: data.repliedAt ?? null }));
             setTicketResolved(true);
           }
+          if (
+            data.forwardPending &&
+            data.forwardedAt &&
+            !data.repliedAt &&
+            !data.replyText
+          ) {
+            const age = Date.now() - new Date(data.forwardedAt).getTime();
+            let already = false;
+            try {
+              already = window.localStorage.getItem(waitKey) === "1";
+            } catch {
+              /* */
+            }
+            if (age >= 120_000 && !already && !waitNoticeLockRef.current) {
+              waitNoticeLockRef.current = true;
+              try {
+                window.localStorage.setItem(waitKey, "1");
+              } catch {
+                /* */
+              }
+              addMessage({ role: "assistant", content: SUPPORT_WAIT_TEXT });
+            }
+          }
         })
         .catch(() => {});
     };
     poll();
     const t = setInterval(poll, 15000);
     return () => clearInterval(t);
-  }, [messages.length, addMessage]);
+  }, [messages.length, addMessage, chatbotId]);
 
   const handleForwardToEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -525,7 +567,20 @@ export default function ChatPanel({ compact = false, embed = false }: ChatPanelP
         {messages.map((m, idx) => {
           const isSupportReply = supportReplyIds.has(m.id);
           const replyMeta = supportReplyMeta.get(m.id);
+          const isWaitNotice = m.role === "assistant" && m.content.startsWith(SUPPORT_WAIT_PREFIX);
           const isFirstUserMessage = m.role === "user" && messages.findIndex((x) => x.role === "user") === idx;
+          if (isWaitNotice) {
+            return (
+              <div key={m.id} className="flex justify-start">
+                <div className="max-w-[90%] rounded-xl border border-indigo-500/35 bg-indigo-950/40 px-4 py-3 text-sm text-indigo-100">
+                  <p className="text-xs font-medium text-indigo-300/90">Update</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                    {m.content.slice(SUPPORT_WAIT_PREFIX.length)}
+                  </p>
+                </div>
+              </div>
+            );
+          }
           if (isSupportReply) {
             return (
               <div key={m.id}>

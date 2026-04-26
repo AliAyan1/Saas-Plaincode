@@ -15,18 +15,38 @@ export async function GET(req: NextRequest) {
 
     const conn = await getDbConnection();
     const [rows] = await conn.execute(
-      "SELECT reply_text AS replyText, replied_at AS repliedAt FROM forwarded_conversations WHERE conversation_id = ? AND reply_text IS NOT NULL AND reply_text != '' ORDER BY replied_at DESC LIMIT 1",
+      `SELECT reply_text AS replyText, replied_at AS repliedAt, created_at AS forwardedAt
+       FROM forwarded_conversations
+       WHERE conversation_id = ?
+       ORDER BY created_at DESC
+       LIMIT 1`,
       [conversationId]
     );
     await conn.end();
 
-    const row = (rows as { replyText: string; repliedAt: string }[])[0];
+    const row = (rows as { replyText: string | null; repliedAt: string | null; forwardedAt: string }[])[0];
     if (!row) {
-      return NextResponse.json({ replyText: null, repliedAt: null }, { headers: corsHeaders });
+      return NextResponse.json(
+        {
+          replyText: null,
+          repliedAt: null,
+          forwardedAt: null,
+          forwardPending: false,
+        },
+        { headers: corsHeaders }
+      );
     }
 
+    const hasReply = Boolean(row.repliedAt) || (Boolean(row.replyText) && String(row.replyText).trim().length > 0);
+    const forwardPending = !hasReply;
+
     return NextResponse.json(
-      { replyText: row.replyText, repliedAt: row.repliedAt },
+      {
+        replyText: row.replyText && String(row.replyText).trim() ? row.replyText : null,
+        repliedAt: row.repliedAt,
+        forwardedAt: row.forwardedAt,
+        forwardPending,
+      },
       { headers: corsHeaders }
     );
   } catch (err) {

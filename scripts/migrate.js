@@ -208,6 +208,27 @@ async function run() {
         await conn.execute("ALTER TABLE forwarded_conversations ADD COLUMN customer_email VARCHAR(255) DEFAULT NULL");
         console.log("  OK");
       }
+      if (!(await hasColumn(conn, "forwarded_conversations", "reminder_6h_sent_at"))) {
+        console.log("Adding forwarded_conversations.reminder_6h_sent_at...");
+        await conn.execute(
+          "ALTER TABLE forwarded_conversations ADD COLUMN reminder_6h_sent_at TIMESTAMP NULL DEFAULT NULL"
+        );
+        console.log("  OK");
+      }
+      if (!(await hasColumn(conn, "forwarded_conversations", "reminder_12h_sent_at"))) {
+        console.log("Adding forwarded_conversations.reminder_12h_sent_at...");
+        await conn.execute(
+          "ALTER TABLE forwarded_conversations ADD COLUMN reminder_12h_sent_at TIMESTAMP NULL DEFAULT NULL"
+        );
+        console.log("  OK");
+      }
+      if (!(await hasColumn(conn, "forwarded_conversations", "reminder_24h_sent_at"))) {
+        console.log("Adding forwarded_conversations.reminder_24h_sent_at...");
+        await conn.execute(
+          "ALTER TABLE forwarded_conversations ADD COLUMN reminder_24h_sent_at TIMESTAMP NULL DEFAULT NULL"
+        );
+        console.log("  OK");
+      }
     }
 
     // tickets table (for all plans)

@@ -11,6 +11,7 @@ import {
   retrieveRelevantPassages,
   getKnowledgeChunkCount,
 } from "@/lib/rag";
+import { extractFirstEmailFromMessages } from "@/lib/extract-email";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -236,6 +237,7 @@ export async function POST(req: NextRequest) {
     let ticketRef: string | null = null;
     let botUserId: string | null = null;
     let userMsgId: string | null = null;
+    let supportJustForwarded = false;
 
     if (chatbotId) {
       const conn = await getDbConnection();
@@ -576,9 +578,14 @@ ${websiteContext}
               .join("\n");
             const lastUser = [...msgs].reverse().find((m) => m.role === "user");
             const preview = (lastUser?.content || question || "Conversation").slice(0, 500);
-            const customer = "Chat user";
+            const customerEmail = extractFirstEmailFromMessages(msgs);
+            const customer = customerEmail
+              ? (customerEmail.split("@")[0] || "Chat user").replace(/[._-]+/g, " ").trim() || "Chat user"
+              : "Chat user";
             const ticketId = randomUUID();
             const ticketRefVal = "TK-" + ticketId.slice(0, 8).toUpperCase();
+            ticketRef = ticketRefVal;
+            supportJustForwarded = true;
             await conn.execute(
               `INSERT INTO tickets (id, user_id, conversation_id, ticket_ref, type, customer, query_preview, status)
                      VALUES (?, ?, ?, ?, 'forwarded_email', ?, ?, 'open')`,
@@ -586,8 +593,8 @@ ${websiteContext}
             );
             await conn.execute(
               `INSERT INTO forwarded_conversations (id, user_id, conversation_id, customer, customer_email, preview, forwarded_as, ticket_ref)
-                     VALUES (?, ?, ?, ?, NULL, ?, 'email', ?)`,
-              [randomUUID(), botUserId, conversationId, customer, preview, ticketRefVal]
+                     VALUES (?, ?, ?, ?, ?, ?, 'email', ?)`,
+              [randomUUID(), botUserId, conversationId, customer, customerEmail, preview, ticketRefVal]
             );
             const [userRows] = await conn.execute("SELECT forward_email FROM users WHERE id = ?", [botUserId]);
             const forwardEmail = (userRows as { forward_email?: string }[])[0]?.forward_email ?? null;
@@ -675,9 +682,14 @@ ${websiteContext}
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Expose-Headers": "X-Conversation-Id, X-Ticket-Ref, X-Forwarded-Support, X-Forwarded-At",
     };
     if (conversationId) headers["X-Conversation-Id"] = conversationId;
     if (ticketRef) headers["X-Ticket-Ref"] = ticketRef;
+    if (supportJustForwarded) {
+      headers["X-Forwarded-Support"] = "1";
+      headers["X-Forwarded-At"] = new Date().toISOString();
+    }
 
     return new Response(stream, { headers });
   } catch (err) {

@@ -6,6 +6,8 @@ import Card from "@/components/Card";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
 
+type SlaStatus = "resolved" | "waiting" | "high" | "critical" | "overdue";
+
 type ForwardedItem = {
   id: string;
   conversationId: string;
@@ -16,7 +18,27 @@ type ForwardedItem = {
   replyText: string | null;
   repliedAt: string | null;
   createdAt: string;
+  slaStatus: SlaStatus;
+  slaPriority: number;
 };
+
+function slaBadge(s: SlaStatus) {
+  const map: Record<SlaStatus, { label: string; className: string }> = {
+    resolved: { label: "Resolved", className: "bg-emerald-500/15 text-emerald-400 border-emerald-600/40" },
+    waiting: { label: "Open", className: "bg-slate-500/15 text-slate-400 border-slate-600/40" },
+    high: { label: "6h+ priority", className: "bg-amber-500/15 text-amber-300 border-amber-600/40" },
+    critical: { label: "12h+ urgent", className: "bg-orange-500/15 text-orange-300 border-orange-600/40" },
+    overdue: { label: "24h+ overdue", className: "bg-red-500/20 text-red-300 border-red-600/50" },
+  };
+  const x = map[s];
+  return (
+    <span
+      className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${x.className}`}
+    >
+      {x.label}
+    </span>
+  );
+}
 
 export default function ForwardedConversationsPage() {
   const { chatbotId } = useBot();
@@ -40,6 +62,19 @@ export default function ForwardedConversationsPage() {
 
   useEffect(() => {
     fetchList();
+  }, [chatbotId]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const q = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
+      fetch(`/api/forwarded${q}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data.forwarded)) setList(data.forwarded);
+        })
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(t);
   }, [chatbotId]);
 
   const handleSaveReply = async (id: string) => {
@@ -66,7 +101,7 @@ export default function ForwardedConversationsPage() {
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-bold text-slate-100">Forwarded conversations</h1>
         <p className="mt-1 text-slate-400">
-          Conversations forwarded to your support email (free plan). Add a reply and the customer will see it in chat.
+          Forwarded to your support email. Replies (email or dashboard) go to the customer in chat and by email. Tickets stay open until you reply—never auto-closed. SLA: 6h / 12h / 24h shows priority; customers get check-in emails at those times if you haven&apos;t replied yet.
         </p>
         <Card className="mt-6">
           {loading ? (
@@ -80,6 +115,7 @@ export default function ForwardedConversationsPage() {
               <table className="min-w-full divide-y divide-slate-700/80 text-sm">
                 <thead className="bg-slate-900/80">
                   <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Customer</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Preview</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">When</th>
@@ -89,6 +125,9 @@ export default function ForwardedConversationsPage() {
                 <tbody className="divide-y divide-slate-700/80 bg-slate-900/40">
                   {list.map((item) => (
                     <tr key={item.id}>
+                      <td className="px-4 py-3 align-top">
+                        {slaBadge(item.slaStatus)}
+                      </td>
                       <td className="px-4 py-3 text-slate-100">{item.customer}</td>
                       <td className="px-4 py-3 text-slate-400 max-w-xs">
                         <span className="line-clamp-2">{item.preview}</span>
