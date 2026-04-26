@@ -69,16 +69,16 @@ function DashboardContent() {
   const remaining = statsUnlimited
     ? UNLIMITED_CONVERSATIONS_DISPLAY
     : (stats?.remaining ?? limit ?? TOTAL_CONVERSATIONS_FALLBACK);
-  const isNewUser = scrapedData && personality;
+  const isNewUser = Boolean(scrapedData && personality && chatbotId);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const storeParam = chatbotId ? `?storeId=${encodeURIComponent(chatbotId)}` : "";
         const botFilter = chatbotId ? `?chatbotId=${encodeURIComponent(chatbotId)}` : "";
+        // Always list all stores (no ?storeId) so "connect store" works even when no bot exists
         const [botRes, statsRes, activityRes, forwardedRes, ticketsRes] = await Promise.all([
-          fetch(`/api/chatbots/me${storeParam}`),
+          fetch("/api/chatbots/me"),
           fetch("/api/conversations/stats"),
           fetch(`/api/activity${botFilter}`),
           fetch(`/api/forwarded${botFilter}`),
@@ -86,23 +86,42 @@ function DashboardContent() {
         ]);
         if (cancelled) return;
         if (botRes.ok) {
-          const botData = await botRes.json();
-          const chatbots = Array.isArray(botData.chatbots) ? botData.chatbots : [];
+          const botData = (await botRes.json()) as {
+            chatbot?: {
+              id: string;
+              websiteUrl: string;
+              websiteTitle: string;
+              websiteDescription: string;
+              websiteContent: string;
+              products?: { name: string; price?: string; url?: string }[];
+              personality: string;
+            };
+            chatbots?: { id: string; name: string; label: string; websiteUrl: string }[];
+            storeCount?: number;
+            storeLimit?: number;
+          };
+          const list = Array.isArray(botData.chatbots) ? botData.chatbots : [];
           if (Array.isArray(botData.chatbots)) setStores(botData.chatbots);
           if (botData.storeLimit !== undefined) setStoreLimit(botData.storeLimit);
-          if (chatbots.length === 0) {
+          const storeCount = typeof botData.storeCount === "number" ? botData.storeCount : list.length;
+          const hasNoStore = storeCount === 0;
+          if (hasNoStore) {
             setChatbotId(null);
-            const [stRes, feRes] = await Promise.all([fetch("/api/users/store-type"), fetch("/api/users/forward-email")]);
-            const storeType = stRes.ok ? (await stRes.json()).storeType as string | null | undefined : null;
-            const forwardEmail = feRes.ok ? (await feRes.json()).forwardEmail as string | null | undefined : null;
-            const hasStoreType = Boolean(storeType && String(storeType).trim());
-            const hasForwardEmail = Boolean(forwardEmail && String(forwardEmail).trim());
-            if (!hasStoreType) {
+            try {
+              const [stRes, feRes] = await Promise.all([fetch("/api/users/store-type"), fetch("/api/users/forward-email")]);
+              const storeType = stRes.ok ? (await stRes.json()).storeType as string | null | undefined : null;
+              const forwardEmail = feRes.ok ? (await feRes.json()).forwardEmail as string | null | undefined : null;
+              const hasStoreType = Boolean(storeType && String(storeType).trim());
+              const hasForwardEmail = Boolean(forwardEmail && String(forwardEmail).trim());
+              if (!hasStoreType) {
+                setConnectOnboardingPath("/onboarding/store-type");
+              } else if (!hasForwardEmail) {
+                setConnectOnboardingPath("/onboarding/forward-email");
+              } else {
+                setConnectOnboardingPath("/create-bot");
+              }
+            } catch {
               setConnectOnboardingPath("/onboarding/store-type");
-            } else if (!hasForwardEmail) {
-              setConnectOnboardingPath("/onboarding/forward-email");
-            } else {
-              setConnectOnboardingPath("/create-bot");
             }
           } else {
             setConnectOnboardingPath(null);
@@ -119,6 +138,8 @@ function DashboardContent() {
               setPersonality(c.personality || "Friendly");
             }
           }
+        } else {
+          setConnectOnboardingPath(null);
         }
         if (ticketsRes.ok) {
           const t = await ticketsRes.json();
@@ -295,26 +316,6 @@ function DashboardContent() {
           </p>
         )}
 
-        {showConnectStoreBanner && connectOnboardingPath && (
-          <Card className="mb-8 border-primary-500/50 bg-gradient-to-br from-primary-500/15 to-slate-900/80">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-100">Connect your store to finish setup</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                  You&apos;re signed in, but there&apos;s no store connected yet. Complete the short steps
-                  (store type, support email, then your website) so your chatbot can go live. Click below
-                  to continue from the first step you still need.
-                </p>
-              </div>
-              <Link href={connectOnboardingPath} className="shrink-0">
-                <Button variant="primary" className="w-full min-w-[200px] sm:w-auto">
-                  Connect store
-                </Button>
-              </Link>
-            </div>
-          </Card>
-        )}
-
         {showFreeNearLimit && (
           <Card className="mb-8 border-primary-500/40 bg-primary-500/10">
             <h2 className="text-lg font-semibold text-primary-200">
@@ -456,6 +457,26 @@ function DashboardContent() {
           </p>
         </header>
 
+        {showConnectStoreBanner && connectOnboardingPath && (
+          <Card className="mb-8 border-primary-500/50 bg-gradient-to-br from-primary-500/15 to-slate-900/80">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100">Connect your store to finish setup</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                  You&apos;re signed in, but there&apos;s no store connected yet. Complete the short steps
+                  (store type, support email, then your website) so your chatbot can go live. Click below
+                  to continue from the first step you still need.
+                </p>
+              </div>
+              <Link href={connectOnboardingPath} className="shrink-0">
+                <Button variant="primary" className="w-full min-w-[200px] sm:w-auto">
+                  Connect store
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        )}
+
         {loading ? (
           <p className="text-slate-400">Loading dashboard…</p>
         ) : (
@@ -563,7 +584,20 @@ function DashboardContent() {
                 <ul className="mt-4 space-y-3">
                   {displayActivity.length === 0 ? (
                     <li className="rounded-lg border border-slate-700/80 bg-slate-800/40 p-4 text-center text-sm text-slate-500">
-                      No activity yet. Chat with your bot or connect a store to see live updates.
+                      {showConnectStoreBanner && connectOnboardingPath ? (
+                        <>
+                          No activity yet.{" "}
+                          <Link
+                            href={connectOnboardingPath}
+                            className="font-medium text-primary-400 underline-offset-2 hover:text-primary-300 hover:underline"
+                          >
+                            Connect your store
+                          </Link>{" "}
+                          to finish setup, then use the widget to see live updates here.
+                        </>
+                      ) : (
+                        "No activity yet. Chat with your bot or connect a store to see live updates."
+                      )}
                     </li>
                   ) : (
                     displayActivity.map((item) => (
