@@ -94,7 +94,7 @@ function buildWebsiteContext(
     products?: { name?: string; price?: string; url?: string }[];
     uploadedDocsText?: string;
   } | null,
-  opts?: { ragPassages?: string[] }
+  opts?: { ragPassages?: string[]; docsExcerpt?: string }
 ): string {
   if (!scrapedData) return "No website content was provided. You do not know anything specific about this store.";
   const parts: string[] = [];
@@ -115,6 +115,11 @@ function buildWebsiteContext(
     parts.push("\nUPLOADED DOCUMENTS (from PDF/TXT the store owner provided — use this to answer product count, product names, and any facts mentioned here):");
     parts.push("When the user asks 'how many products do you have?' or similar, infer from this document (e.g. count list items, or use a number stated in the text). Answer in first person (e.g. 'We have around X products.'). Do not say 'this information is not available' if this document contains product or catalog information.");
     parts.push(doc.length > 40000 ? doc.slice(0, 40000) + "\n[...]" : doc);
+  }
+  if (useRag && opts?.docsExcerpt && opts.docsExcerpt.trim()) {
+    const ex = opts.docsExcerpt.trim();
+    parts.push("\nUPLOADED DOCUMENTS (excerpt — included because the question likely depends on it):");
+    parts.push(ex.length > 12000 ? ex.slice(0, 12000) + "\n[...]" : ex);
   }
   if (useRag && hasUploadedDocs) {
     parts.push(
@@ -393,9 +398,17 @@ export async function POST(req: NextRequest) {
           }
         }
         const passages = await retrieveRelevantPassages(connRag, chatbotId, question);
+        const wantsDocHelp =
+          /\bhow many products\b|\bnumber of products\b|\bproduct count\b|\bprice range\b|\bhow much\b|\bcost\b/i.test(
+            question
+          );
+        const docsExcerpt =
+          wantsDocHelp && (scrapedData?.uploadedDocsText?.trim().length ?? 0) > 0
+            ? String(scrapedData?.uploadedDocsText || "").slice(0, 20000)
+            : undefined;
         websiteContext = buildWebsiteContext(
           scrapedData,
-          passages.length > 0 ? { ragPassages: passages } : undefined
+          passages.length > 0 ? { ragPassages: passages, ...(docsExcerpt ? { docsExcerpt } : {}) } : undefined
         );
       } catch (e) {
         console.error("[RAG] context build failed:", e);
