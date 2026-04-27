@@ -2,17 +2,71 @@
 const mysql = require("mysql2/promise");
 require("dotenv").config({ path: ".env.local" });
 
+function getArg(name) {
+  const i = process.argv.indexOf(name);
+  if (i === -1) return null;
+  const v = process.argv[i + 1];
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
 async function main() {
+  const targetChatbotId = getArg("--chatbotId");
   const url = process.env.MYSQL_URL || process.env.DATABASE_URL;
   const conn = url
-    ? await mysql.createConnection(url)
+    ? await mysql.createConnection({ uri: url, connectTimeout: 15000 })
     : await mysql.createConnection({
         host: process.env.DB_HOST,
         port: Number(process.env.DB_PORT || "3306"),
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
+        connectTimeout: 15000,
       });
+
+  if (targetChatbotId) {
+    const [rows] = await conn.execute(
+      `SELECT id,
+              website_url AS websiteUrl,
+              website_title AS websiteTitle,
+              LENGTH(COALESCE(website_content,'')) AS websiteChars,
+              LENGTH(COALESCE(products_json,'')) AS productsChars,
+              LENGTH(COALESCE(uploaded_docs_text,'')) AS legacyDocsChars,
+              created_at AS createdAt
+       FROM chatbots
+       WHERE id = ?`,
+      [targetChatbotId]
+    );
+    const bot = (rows || [])[0];
+    if (!bot) {
+      console.log("No chatbot found for:", targetChatbotId);
+      await conn.end();
+      return;
+    }
+    console.log("chatbot:");
+    console.table([bot]);
+
+    const [docCounts] = await conn.execute(
+      "SELECT COUNT(*) AS docCount FROM chatbot_documents WHERE chatbot_id = ?",
+      [targetChatbotId]
+    );
+    const [chunkCounts] = await conn.execute(
+      "SELECT COUNT(*) AS chunkCount FROM chatbot_knowledge_chunks WHERE chatbot_id = ?",
+      [targetChatbotId]
+    );
+    console.log("docCount:", Number(docCounts?.[0]?.docCount ?? 0));
+    console.log("chunkCount:", Number(chunkCounts?.[0]?.chunkCount ?? 0));
+
+    // Show a tiny excerpt from documents to confirm extraction worked
+    const [docs] = await conn.execute(
+      "SELECT file_name AS fileName, LENGTH(COALESCE(content,'')) AS chars, LEFT(COALESCE(content,''), 600) AS excerpt FROM chatbot_documents WHERE chatbot_id = ? ORDER BY created_at ASC LIMIT 5",
+      [targetChatbotId]
+    );
+    console.log("documents (up to 5):");
+    console.table(docs);
+
+    await conn.end();
+    return;
+  }
 
   const [bots] = await conn.execute(
     "SELECT id, website_url AS websiteUrl, website_title AS websiteTitle, created_at AS createdAt FROM chatbots ORDER BY created_at DESC LIMIT 10"
