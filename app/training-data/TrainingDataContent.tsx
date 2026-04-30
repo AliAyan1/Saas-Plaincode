@@ -10,7 +10,7 @@ import { formatAssistantMessageForDisplay } from "@/lib/format-assistant-message
 
 const SITEMAP_INITIAL = 4;
 const PRODUCTS_INITIAL = 6;
-const DEPLOY_MARKER = "deploy-marker-2026-04-30-2";
+const DEPLOY_MARKER = "deploy-marker-2026-04-30-3";
 
 function statusClass(status: string) {
   if (status === "Fully trained") return "bg-emerald-500/15 text-emerald-300";
