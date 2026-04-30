@@ -4,7 +4,8 @@ import { useState } from "react";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
 import { useBot } from "@/components/BotContext";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatAssistantMessageForDisplay } from "@/lib/format-assistant-message";
 
 const SITEMAP_INITIAL = 4;
@@ -27,6 +28,7 @@ const SITEMAP_ITEMS = [
 
 export default function TrainingDataContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { scrapedData } = useBot();
   const [sitemapExpanded, setSitemapExpanded] = useState(false);
   const [productsExpanded, setProductsExpanded] = useState(false);
@@ -38,9 +40,33 @@ export default function TrainingDataContent() {
   const websiteFeedFormatted = websiteFeed
     ? formatAssistantMessageForDisplay(websiteFeed)
     : "";
+  const scrapeFailed = searchParams.get("scrape") === "failed";
+  const hasDocsOrCatalog = Boolean(products || (scrapedData?.content && scrapedData.content.trim().length > 0));
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+      {(!hasDocsOrCatalog || scrapeFailed) && (
+        <Card className="border-primary-500/40 bg-primary-500/10">
+          <h2 className="text-sm font-semibold text-slate-100">Add PDFs for better answers</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            If your site blocks crawling (or the content is incomplete), you can still finish setup. Upload PDFs/TXT with
+            product lists, pricing, FAQs, shipping/returns, and policies so the assistant can answer accurately.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/knowledge">
+              <Button variant="primary">Upload PDFs / documents</Button>
+            </Link>
+            <Button variant="outline" onClick={() => router.push("/training-data/manual-products")}>
+              Add products manually
+            </Button>
+          </div>
+          {scrapedData?.url && (
+            <p className="mt-3 text-xs text-slate-400">
+              Your assistant greeting will use: <span className="font-medium text-slate-200">{scrapedData.title || scrapedData.url}</span>
+            </p>
+          )}
+        </Card>
+      )}
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">

@@ -72,6 +72,63 @@ export default function CreateBotPage() {
   const [scanStep, setScanStep] = useState<ScanStep>("idle");
   const [progressPercent, setProgressPercent] = useState(0);
 
+  const siteLabelFromUrl = (raw: string): string => {
+    const s = (raw || "").trim();
+    if (!s) return "your store";
+    try {
+      const u = new URL(s.startsWith("http") ? s : `https://${s}`);
+      return (u.hostname || "your store").replace(/^www\./i, "");
+    } catch {
+      return s.replace(/^https?:\/\//i, "").split("/")[0] || "your store";
+    }
+  };
+
+  const continueWithoutCrawl = async (websiteUrl: string) => {
+    const trimmed = websiteUrl.trim();
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    setErrorCode(null);
+    try {
+      const label = siteLabelFromUrl(trimmed);
+      const payload = {
+        url: trimmed,
+        title: label,
+        description: "",
+        content: "",
+        products: [] as { name: string; price?: string; url?: string }[],
+      };
+      // Populate client greeting/preview even if scrape failed.
+      setScrapedData(payload);
+      addActivity({
+        type: "warning",
+        title: "Website connected (limited access)",
+        detail: `We couldn't crawl ${label} right now. Upload PDFs or add products to improve answers.`,
+      });
+      const botRes = await fetch("/api/chatbots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          websiteUrl: trimmed,
+          websiteTitle: payload.title,
+          websiteDescription: payload.description,
+          websiteContent: payload.content,
+          products: payload.products,
+          personality: personality || "Friendly",
+        }),
+      });
+      if (botRes.ok) {
+        const botData = await botRes.json();
+        if (botData.chatbot?.id) setChatbotId(botData.chatbot.id);
+      }
+      router.push("/training-data?scrape=failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create bot without crawl.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Simulate progress while request is in flight
   useEffect(() => {
     if (!loading) return;
@@ -269,6 +326,14 @@ export default function CreateBotPage() {
                     onClick={() => handleSubmit({ preventDefault: () => {} } as FormEvent)}
                   >
                     Try again
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => continueWithoutCrawl(url)}
+                    disabled={loading}
+                  >
+                    Continue without crawl
                   </Button>
                   {errorCode === "ACCESS_DENIED" && (
                     <Button
